@@ -1,13 +1,17 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { clearSupabaseSessionCache, resolveSupabaseSession, syncSupabaseSession } from './authSession'
 import { apiPost } from '../services/api'
 
 const AuthContext = createContext({})
 
+const INITIAL_SESSION_TIMEOUT_MS = 4000
+
 const withTimeout = (promise, ms) => {
-  const timeout = new Promise((_, reject) => 
+  const timeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('Request timeout')), ms)
   )
+
   return Promise.race([promise, timeout])
 }
 
@@ -45,83 +49,117 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const activeUserIdRef = useRef(null)
 
   useEffect(() => {
     let mounted = true
+    let startupTimer = null
+
+    const finishLoading = () => {
+      if (mounted) {
+        setLoading(false)
+      }
+    }
+
+    const applySession = async (session) => {
+      if (!mounted) {
+        return
+      }
+
+      syncSupabaseSession(session)
+
+      if (!session?.user) {
+        activeUserIdRef.current = null
+        setUser(null)
+        setProfile(null)
+        finishLoading()
+        return
+      }
+
+      setUser(session.user)
+
+      if (activeUserIdRef.current !== session.user.id) {
+        activeUserIdRef.current = session.user.id
+        const profileData = await fetchProfileData(
+          session.user.id,
+          session.user.email,
+          session.user.user_metadata
+        )
+
+        if (mounted) {
+          setProfile(profileData)
+        }
+      }
+
+      finishLoading()
+    }
 
     const initAuth = async () => {
       try {
-        const { data: { session }, error } = await withTimeout(
-          supabase.auth.getSession(),
-          8000
-        )
-        
-        if (!mounted) return
+        const session = await resolveSupabaseSession({
+          timeoutMs: INITIAL_SESSION_TIMEOUT_MS
+        })
 
-        if (error) {
-          console.error('Session error:', error)
-          setLoading(false)
-          return
-        }
-
-        if (session?.user) {
-          setUser(session.user)
-          const profileData = await fetchProfileData(
-            session.user.id,
-            session.user.email,
-            session.user.user_metadata
-          )
-          if (mounted) {
-            setProfile(profileData)
-          }
-        } else {
-          setUser(null)
-          setProfile(null)
-        }
+        await applySession(session)
       } catch (err) {
         console.error('Auth init error:', err)
         if (mounted) {
           setUser(null)
           setProfile(null)
+          finishLoading()
         }
-      } finally {
-        if (mounted) setLoading(false)
       }
     }
+
+    startupTimer = setTimeout(() => {
+      finishLoading()
+    }, INITIAL_SESSION_TIMEOUT_MS + 500)
 
     initAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-        
-        if (event === 'INITIAL_SESSION') return
-        
-        if (session?.user) {
-          setUser(session.user)
+
+        syncSupabaseSession(session)
+
+        if (!session?.user) {
+          activeUserIdRef.current = null
+          setUser(null)
+          setProfile(null)
+          finishLoading()
+          return
+        }
+
+        setUser(session.user)
+
+        if (activeUserIdRef.current !== session.user.id || event === 'INITIAL_SESSION') {
+          activeUserIdRef.current = session.user.id
           const profileData = await fetchProfileData(
             session.user.id,
             session.user.email,
             session.user.user_metadata
           )
+
           if (mounted) {
             setProfile(profileData)
           }
-        } else {
-          setUser(null)
-          setProfile(null)
         }
+
+        finishLoading()
       }
     )
 
     return () => {
       mounted = false
+      clearTimeout(startupTimer)
       subscription.unsubscribe()
     }
   }, [])
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    clearSupabaseSessionCache()
     setUser(null)
     setProfile(null)
   }

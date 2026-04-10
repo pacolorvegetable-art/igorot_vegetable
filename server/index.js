@@ -507,8 +507,6 @@ app.get('/api/notifications', asyncHandler(async (req, res) => {
 }))
 
 app.post('/api/auth/profile', asyncHandler(async (req, res) => {
-  const accessToken = getAccessTokenFromRequest(req)
-  const supabase = createSupabaseServerClient(accessToken)
   const { userId, userEmail, userMetadata } = req.body || {}
 
   if (!userId) {
@@ -516,49 +514,74 @@ app.post('/api/auth/profile', asyncHandler(async (req, res) => {
     return
   }
 
-  const profile = await getCachedOrLoad({
-    key: `auth:profile:${userId}`,
-    ttlSeconds: 300,
-    tags: ['profiles', `profile:${userId}`],
-    loader: async () => {
-      const fallbackProfile = {
-        id: userId,
-        email: userEmail,
-        role: userMetadata?.role || 'customer',
-        name: userMetadata?.full_name || '',
-        phone: userMetadata?.phone || '',
-        delivery_address: ''
+  const fallbackProfile = {
+    id: userId,
+    email: userEmail,
+    role: userMetadata?.role || 'customer',
+    name: userMetadata?.full_name || '',
+    phone: userMetadata?.phone || '',
+    delivery_address: ''
+  }
+
+  try {
+    const accessToken = getAccessTokenFromRequest(req)
+    const supabase = createSupabaseServerClient(accessToken)
+    const preferredRole = userMetadata?.role === 'staff' ? 'staff' : 'customer'
+    const profileTableOrder = preferredRole === 'staff'
+      ? ['seller', 'customer']
+      : ['customer', 'seller']
+
+    const loadProfileFromTable = async (tableName) => {
+      const selectColumns = tableName === 'seller'
+        ? 'id, name, email, phone'
+        : 'id, name, email, phone, delivery_address'
+
+      const { data, error } = await supabase
+        .from(tableName)
+        .select(selectColumns)
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (error && error.code !== 'PGRST116') {
+        throw error
       }
 
-      try {
-        const { data: sellerData, error: sellerError } = await supabase
-          .from('seller')
-          .select('id, name, email, phone')
-          .eq('id', userId)
-          .maybeSingle()
+      if (!data) {
+        return null
+      }
 
-        if (sellerData && !sellerError) {
-          return { ...sellerData, role: 'staff' }
-        }
-
-        const { data: customerData, error: customerError } = await supabase
-          .from('customer')
-          .select('id, name, email, phone, delivery_address')
-          .eq('id', userId)
-          .maybeSingle()
-
-        if (customerData && !customerError) {
-          return { ...customerData, role: 'customer' }
-        }
-
-        return fallbackProfile
-      } catch {
-        return fallbackProfile
+      return {
+        ...fallbackProfile,
+        ...data,
+        role: tableName === 'seller' ? 'staff' : 'customer',
+        delivery_address: tableName === 'customer'
+          ? data.delivery_address || ''
+          : ''
       }
     }
-  })
 
-  res.json(profile)
+    for (const tableName of profileTableOrder) {
+      try {
+        const resolvedProfile = await loadProfileFromTable(tableName)
+        if (resolvedProfile) {
+          res.json(resolvedProfile)
+          return
+        }
+      } catch (error) {
+        console.warn(
+          `Profile lookup failed for ${tableName}:${userId}; using fallback profile.`,
+          error.message
+        )
+        res.json(fallbackProfile)
+        return
+      }
+    }
+
+    res.json(fallbackProfile)
+  } catch (error) {
+    console.warn(`Profile resolution failed for ${userId}; using fallback profile.`, error.message)
+    res.json(fallbackProfile)
+  }
 }))
 
 app.get('/api/auth/user-exists', asyncHandler(async (req, res) => {

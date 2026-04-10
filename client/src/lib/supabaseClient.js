@@ -22,3 +22,5 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     }
   }
 })
+
+export const supabaseAuthStorageKey = 'igorot-vegetable-auth'
