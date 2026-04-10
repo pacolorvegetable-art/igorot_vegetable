@@ -1,7 +1,20 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabaseClient'
 
-const api = axios.create({ baseURL: '/api' })
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+
+  if (!configuredBaseUrl) {
+    return '/api'
+  }
+
+  const withoutTrailingSlash = configuredBaseUrl.replace(/\/+$/, '')
+  return withoutTrailingSlash.endsWith('/api')
+    ? withoutTrailingSlash
+    : `${withoutTrailingSlash}/api`
+}
+
+const api = axios.create({ baseURL: resolveApiBaseUrl() })
 const requestCache = new Map()
 const cacheTagIndex = new Map()
 
