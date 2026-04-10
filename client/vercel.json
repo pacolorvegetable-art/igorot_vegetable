@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://your-render-service-url.onrender.com/api/$1"
+      "destination": "https://igorot-vegetable.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
