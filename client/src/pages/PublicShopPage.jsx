@@ -125,9 +125,11 @@ function PublicShopPage() {
   }
 
   useEffect(() => {
-    if (trackingPhone === trackedPhoneParam) return
-    setTrackingPhone(trackedPhoneParam)
-  }, [trackedPhoneParam, trackingPhone])
+    setTrackingPhone((currentPhone) => {
+      if (currentPhone === trackedPhoneParam) return currentPhone
+      return trackedPhoneParam
+    })
+  }, [trackedPhoneParam])
 
   useEffect(() => {
     if (!user || !isOrdersView) return
