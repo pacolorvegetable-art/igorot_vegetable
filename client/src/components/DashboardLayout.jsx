@@ -13,7 +13,7 @@ import {
   ChevronDown,
   Bell
 } from 'lucide-react'
-import { useAuth } from '../lib/AuthContext'
+import { useAuth } from '../lib/useAuth'
 import NotificationsPanel from './NotificationsPanel'
 import { useNotifications } from '../hooks/useNotifications'
 import { extractNotificationOrderId } from '../lib/notificationUtils'

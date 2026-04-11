@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useCart } from '../lib/CartContext'
+import { useCart } from '../lib/useCart'
 import CheckoutDialog from './CheckoutDialog'
 import {
   ShoppingCart,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createElement, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -21,7 +21,8 @@ import {
   UserRound,
   Users
 } from 'lucide-react'
-import { useAuth } from '../lib/AuthContext'
+import { useAuth } from '../lib/useAuth'
+import { supabase } from '../lib/supabaseClient'
 import { updateCustomer } from '../services/customerService'
 import { getCurrentUserOrderHistory } from '../services/settingsService'
 import NotificationsPanel from '../components/NotificationsPanel'
@@ -30,12 +31,12 @@ import { extractNotificationOrderId } from '../lib/notificationUtils'
 import { ACTIVE_ORDER_STATUSES } from '../lib/orderStatus'
 import OrderTrackingPage from './OrderTrackingPage'
 
-function SectionCard({ icon: Icon, title, action, children }) {
+function SectionCard({ icon, title, action, children }) {
   return (
     <section className="rounded-lg border bg-card text-card-foreground shadow-sm">
       <div className="flex items-start justify-between gap-3 p-4 sm:p-6">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold tracking-tight sm:text-2xl">
-          <Icon className="h-4 w-4 shrink-0 text-primary" />
+          {createElement(icon, { className: 'h-4 w-4 shrink-0 text-primary' })}
           {title}
         </h2>
         {action}
@@ -45,12 +46,12 @@ function SectionCard({ icon: Icon, title, action, children }) {
   )
 }
 
-function CountCard({ icon: Icon, title, value, description, loading }) {
+function CountCard({ icon, title, value, description, loading }) {
   return (
     <section className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
       <div className="mb-5 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-          <Icon className="h-4.5 w-4.5 text-primary" />
+          {createElement(icon, { className: 'h-4.5 w-4.5 text-primary' })}
         </span>
         {title}
       </div>
@@ -173,6 +174,36 @@ function AccountPage() {
     loadOrders()
     return () => {
       isMounted = false
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) {
+      return undefined
+    }
+
+    const refreshOrdersSilently = async () => {
+      try {
+        const nextOrders = await getCurrentUserOrderHistory()
+        setOrders(nextOrders)
+      } catch (error) {
+        console.error('Failed to refresh account orders from realtime event:', error)
+      }
+    }
+
+    const channel = supabase
+      .channel(`account-orders:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          refreshOrdersSilently()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
   }, [user?.id])
 

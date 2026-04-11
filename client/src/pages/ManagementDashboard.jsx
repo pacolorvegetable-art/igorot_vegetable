@@ -16,7 +16,7 @@ import {
   Check
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
-import { useAuth } from '../lib/AuthContext'
+import { useAuth } from '../lib/useAuth'
 import { uploadProductImage, deleteProductImage } from '../lib/imageUtils'
 
 export default function ManagementDashboard() {

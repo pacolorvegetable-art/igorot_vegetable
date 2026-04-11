@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { useWishlist } from '../lib/WishlistContext'
-import { useCart } from '../lib/CartContext'
+import { useEffect } from 'react'
+import { useWishlist } from '../lib/useWishlist'
+import { useCart } from '../lib/useCart'
 import { toast } from 'sonner'
 import {
   Heart,

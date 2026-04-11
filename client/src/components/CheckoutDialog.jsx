@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { useCart } from '../lib/CartContext'
-import { useAuth } from '../lib/AuthContext'
+import { useCart } from '../lib/useCart'
+import { useAuth } from '../lib/useAuth'
 import { getPaymentMethods } from '../services/settingsService'
 import { createOrder } from '../services/settingsService'
 import { updateCustomer } from '../services/customerService'
@@ -146,10 +146,6 @@ function CheckoutDialog({ isOpen, onClose }) {
   const hasPreOrderItems = cartItems.some(item => item.product.availability_type === 'pre_order')
   const preOrderItems = cartItems.filter(item => item.product.availability_type === 'pre_order')
   const onHandItems = cartItems.filter(item => item.product.availability_type !== 'pre_order')
-
-  // Calculate totals
-  const preOrderTotal = preOrderItems.reduce((sum, item) => sum + (item.quantity * getItemPrice(item)), 0)
-  const onHandTotal = onHandItems.reduce((sum, item) => sum + (item.quantity * getItemPrice(item)), 0)
 
   // Validate form
   const isFormValid = () => {

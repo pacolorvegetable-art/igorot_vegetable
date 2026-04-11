@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../lib/AuthContext'
+import { useAuth } from '../lib/useAuth'
 
 export function ProtectedRoute({ children, allowedRoles = [], unauthenticatedRedirectTo }) {
   const { user, profile, loading, isStaff, isCustomer } = useAuth()

@@ -1,9 +1,8 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { clearSupabaseSessionCache, resolveSupabaseSession, syncSupabaseSession } from './authSession'
+import { AuthContext } from './authContext'
 import { apiPost } from '../services/api'
-
-const AuthContext = createContext({})
 
 const INITIAL_SESSION_TIMEOUT_MS = 4000
 
@@ -195,12 +194,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { createElement, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package,
@@ -237,7 +237,7 @@ export default function DashboardPage() {
   )
 }
 
-function StatCard({ title, value, icon: Icon, color, href }) {
+function StatCard({ title, value, icon, color, href }) {
   const colorClasses = {
     emerald: 'bg-emerald-600/10 text-emerald-600',
     blue: 'bg-blue-600/10 text-blue-600',
@@ -252,7 +252,7 @@ function StatCard({ title, value, icon: Icon, color, href }) {
     >
       <div className="flex items-center justify-between">
         <div className={`h-10 w-10 rounded-lg ${colorClasses[color]} flex items-center justify-center`}>
-          <Icon className="h-5 w-5" />
+          {createElement(icon, { className: 'h-5 w-5' })}
         </div>
       </div>
       <div className="mt-3">
@@ -263,7 +263,7 @@ function StatCard({ title, value, icon: Icon, color, href }) {
   )
 }
 
-function QuickActionCard({ title, description, icon: Icon, href, color }) {
+function QuickActionCard({ title, description, icon, href, color }) {
   const colorClasses = {
     emerald: 'bg-emerald-600/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
     blue: 'bg-blue-600/10 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
@@ -275,7 +275,7 @@ function QuickActionCard({ title, description, icon: Icon, href, color }) {
       className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 hover:shadow-md transition-all"
     >
       <div className={`h-12 w-12 rounded-xl ${colorClasses[color]} flex items-center justify-center transition-colors`}>
-        <Icon className="h-6 w-6" />
+        {createElement(icon, { className: 'h-6 w-6' })}
       </div>
       <div className="flex-1">
         <h3 className="font-semibold text-foreground">{title}</h3>

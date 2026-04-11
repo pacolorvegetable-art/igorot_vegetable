@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { createElement, useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Mountain,
@@ -12,7 +12,7 @@ import {
   ArrowLeft
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
-import { useAuth } from '../lib/AuthContext'
+import { useAuth } from '../lib/useAuth'
 import { isCustomerUser } from '../lib/portalMembership'
 
 function AuthRetailPage() {
@@ -413,24 +413,24 @@ function AuthRetailPage() {
   )
 }
 
-function FeaturePill({ icon: Icon, label }) {
+function FeaturePill({ icon, label }) {
   return (
     <div className="flex-1 flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-card/60 backdrop-blur-sm border border-border/40 text-center">
       <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-600/10">
-        <Icon className="h-3.5 w-3.5 text-green-600" />
+        {createElement(icon, { className: 'h-3.5 w-3.5 text-green-600' })}
       </div>
       <p className="text-[11px] font-medium text-foreground leading-tight">{label}</p>
     </div>
   )
 }
 
-function PortalLink({ to, icon: Icon, label }) {
+function PortalLink({ to, icon, label }) {
   return (
     <Link
       to={to}
       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent hover:border-border/50 transition-all duration-200"
     >
-      <Icon className="h-3 w-3" />
+      {createElement(icon, { className: 'h-3 w-3' })}
       <span>{label}</span>
     </Link>
   )

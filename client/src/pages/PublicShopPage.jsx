@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { useCart } from '../lib/CartContext'
-import { useWishlist } from '../lib/WishlistContext'
-import { useAuth } from '../lib/AuthContext'
+import { useCart } from '../lib/useCart'
+import { useWishlist } from '../lib/useWishlist'
+import { useAuth } from '../lib/useAuth'
 import CartDialog from '../components/CartDialog'
 import WishlistDialog from '../components/WishlistDialog'
 import {

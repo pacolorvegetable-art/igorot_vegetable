@@ -48,27 +48,19 @@ export default function ProductsPage() {
   }
 
   const handleAddProduct = async (productData, imageFile) => {
-    try {
-      await createProduct(productData, imageFile)
-      setShowAddModal(false)
-      loadProducts()
-    } catch (err) {
-      throw err
-    }
+    await createProduct(productData, imageFile)
+    setShowAddModal(false)
+    await loadProducts()
   }
 
   const handleEditProduct = async (productData, imageFile) => {
-    try {
-      await updateProduct(selectedProduct.id, {
-        ...productData,
-        old_image_url: selectedProduct.image_url
-      }, imageFile)
-      setShowEditModal(false)
-      setSelectedProduct(null)
-      loadProducts()
-    } catch (err) {
-      throw err
-    }
+    await updateProduct(selectedProduct.id, {
+      ...productData,
+      old_image_url: selectedProduct.image_url
+    }, imageFile)
+    setShowEditModal(false)
+    setSelectedProduct(null)
+    await loadProducts()
   }
 
   const handleDeleteProduct = async () => {
@@ -76,7 +68,7 @@ export default function ProductsPage() {
       await deleteProduct(selectedProduct.id, selectedProduct.image_url)
       setShowDeleteModal(false)
       setSelectedProduct(null)
-      loadProducts()
+      await loadProducts()
     } catch (err) {
       setError(err.message || 'Failed to delete product')
     }
@@ -318,7 +310,7 @@ function ProductFormModal({ title, product, onClose, onSubmit }) {
       URL.revokeObjectURL(originalUrl)
 
       console.log(`Original: ${(file.size / 1024).toFixed(1)}KB → Compressed: ${(compressed.size / 1024).toFixed(1)}KB`)
-    } catch (err) {
+    } catch {
       setError('Failed to process image')
       setImageFile(file)
     } finally {

@@ -130,13 +130,21 @@ export async function updateOrderPaymentStatus(id, payment_status) {
 
 export async function deleteOrder(id) {
   // Order items will be deleted automatically via CASCADE
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('orders')
     .delete()
     .eq('id', id)
+    .select('customer_id')
+    .maybeSingle()
 
   if (error) throw error
-  await invalidateCacheTags(['orders', 'notifications'])
+
+  const cacheTags = ['orders', 'notifications']
+  if (data?.customer_id) {
+    cacheTags.push('customers', `customer:${data.customer_id}`)
+  }
+
+  await invalidateCacheTags(cacheTags)
 }
 
 export async function getDashboardKpis() {

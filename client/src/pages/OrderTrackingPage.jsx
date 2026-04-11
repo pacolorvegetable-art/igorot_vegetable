@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, useEffect, useEffectEvent } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { useAuth } from '../lib/AuthContext'
+import { useAuth } from '../lib/useAuth'
 import {
   Sprout,
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getCurrentUserOrderHistory, getTrackedOrdersByPhone } from '../services/settingsService'
+import { supabase } from '../lib/supabaseClient'
 
 const ORDER_STATUS_CONFIG = {
   pending: {
@@ -137,6 +138,31 @@ function OrderTrackingPage({ embedded = false, onBack = null, embeddedContext = 
       setLoading(false)
     }
   }, [authLoading, isSignedInCustomer, phone])
+
+  useEffect(() => {
+    if (authLoading) {
+      return undefined
+    }
+
+    if (!isSignedInCustomer && !phone) {
+      return undefined
+    }
+
+    const channel = supabase
+      .channel(`order-tracking:${isSignedInCustomer ? user?.id || 'customer' : phone || 'phone'}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          fetchOrders()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [authLoading, isSignedInCustomer, phone, user?.id])
 
   useEffect(() => {
     if (loading || !targetOrderId) return
