@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useCart } from '../lib/CartContext'
 import { useWishlist } from '../lib/WishlistContext'
@@ -37,9 +37,13 @@ import NotificationsPanel from '../components/NotificationsPanel'
 import { useNotifications } from '../hooks/useNotifications'
 import { extractNotificationOrderId } from '../lib/notificationUtils'
 import { getProducts } from '../services/productService'
-import { getTrackedOrdersByPhone } from '../services/settingsService'
+import OrderTrackingPage from './OrderTrackingPage'
 
 function PublicShopPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const trackedPhoneParam = searchParams.get('phone') || ''
+  const trackedOrderIdParam = searchParams.get('order') || ''
+  const isOrdersView = searchParams.get('view') === 'orders'
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -50,7 +54,7 @@ function PublicShopPage() {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isWishlistOpen, setIsWishlistOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [trackingPhone, setTrackingPhone] = useState('')
+  const [trackingPhone, setTrackingPhone] = useState(() => trackedPhoneParam)
   const [activeProductId, setActiveProductId] = useState(null)
 
   const { addToCart, setIsCartOpen, getItemCount } = useCart()
@@ -78,26 +82,65 @@ function PublicShopPage() {
     'Account'
   const accountInitial = accountName.trim().charAt(0).toUpperCase() || 'A'
 
+  const openOrdersView = ({ phone = null, orderId = null } = {}) => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('view', 'orders')
+
+    if (phone) {
+      nextSearchParams.set('phone', phone)
+    } else {
+      nextSearchParams.delete('phone')
+    }
+
+    if (orderId) {
+      nextSearchParams.set('order', orderId)
+    } else {
+      nextSearchParams.delete('order')
+    }
+
+    setSelectedProduct(null)
+    setQuantity('')
+    setImageLoaded(false)
+    setNotificationsOpen(false)
+    setSearchParams(nextSearchParams)
+  }
+
+  const closeOrdersView = () => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('view')
+    nextSearchParams.delete('phone')
+    nextSearchParams.delete('order')
+
+    setSearchParams(nextSearchParams)
+  }
+
   // Handle order tracking
-  const handleTrackOrder = async () => {
+  const handleTrackOrder = () => {
     if (!trackingPhone.trim()) {
       toast.error('Please enter a phone number')
       return
     }
 
-    try {
-      const orders = await getTrackedOrdersByPhone(trackingPhone)
-      if (orders.length > 0) {
-        // Navigate to order tracking page with phone number as query param
-        navigate(`/track-order?phone=${encodeURIComponent(trackingPhone)}`)
-      } else {
-        toast.error('No orders found with this phone number')
-      }
-    } catch (error) {
-      console.error('Error checking orders:', error)
-      toast.error('Failed to search orders. Please try again.')
-    }
+    openOrdersView({ phone: trackingPhone.trim() })
   }
+
+  useEffect(() => {
+    if (trackingPhone === trackedPhoneParam) return
+    setTrackingPhone(trackedPhoneParam)
+  }, [trackedPhoneParam, trackingPhone])
+
+  useEffect(() => {
+    if (!user || !isOrdersView) return
+
+    const nextSearchParams = new URLSearchParams()
+    nextSearchParams.set('view', 'orders')
+
+    if (trackedOrderIdParam) {
+      nextSearchParams.set('order', trackedOrderIdParam)
+    }
+
+    navigate(`/account?${nextSearchParams.toString()}`, { replace: true })
+  }, [user, isOrdersView, trackedOrderIdParam, navigate])
 
   // Fetch products
   useEffect(() => {
@@ -321,7 +364,7 @@ function PublicShopPage() {
     setNotificationsOpen(false)
 
     if (orderId) {
-      navigate(`/track-order?order=${encodeURIComponent(orderId)}`)
+      openOrdersView({ orderId })
       return
     }
 
@@ -596,95 +639,99 @@ function PublicShopPage() {
       />
 
       <div className="max-w-6xl mx-auto px-3 sm:px-5 lg:px-8 overflow-x-hidden">
-        <div className="pt-3 sm:pt-4 space-y-3">
-          {/* Trust badges */}
-          <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 sm:p-4 overflow-hidden">
-            <div className="flex gap-4 sm:gap-4 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-5 pb-0.5">
-              <div className="flex items-center gap-2 text-sm shrink-0">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <BadgeCheck className="h-4 w-4 text-primary" />
-                </div>
-                <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">Verified Local Farm</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm shrink-0">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <Users className="h-4 w-4 text-primary" />
-                </div>
-                <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">500+ Orders Served</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm shrink-0">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                </div>
-                <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">98% Satisfaction</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm shrink-0">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <Leaf className="h-4 w-4 text-primary" />
-                </div>
-                <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">Farm-Fresh Guarantee</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm shrink-0">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <Truck className="h-4 w-4 text-primary" />
-                </div>
-                <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">Same-Day Delivery</span>
-              </div>
-            </div>
-          </div>
-
-          {!authLoading && !user && (
-            <div className="bg-muted/50 border border-border rounded-xl p-3 sm:p-4 overflow-hidden">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Search className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold text-sm">Track Your Order</h3>
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Enter the phone number you used when ordering.
-                </p>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <input
-                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm pl-9 h-9 text-base sm:text-sm"
-                      placeholder="09XX XXX XXXX"
-                      value={trackingPhone}
-                      onChange={(e) => setTrackingPhone(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleTrackOrder()
-                        }
-                      }}
-                    />
+        {isOrdersView ? (
+          <OrderTrackingPage embedded onBack={closeOrdersView} embeddedContext="shop" />
+        ) : (
+          <>
+            <div className="pt-3 sm:pt-4 space-y-3">
+              {/* Trust badges */}
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 sm:p-4 overflow-hidden">
+                <div className="flex gap-4 sm:gap-4 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-5 pb-0.5">
+                  <div className="flex items-center gap-2 text-sm shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <BadgeCheck className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">Verified Local Farm</span>
                   </div>
-                  <button
-                    onClick={handleTrackOrder}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md rounded-md px-3 h-9"
-                  >
-                    Track
-                  </button>
+                  <div className="flex items-center gap-2 text-sm shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Users className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">500+ Orders Served</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">98% Satisfaction</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Leaf className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">Farm-Fresh Guarantee</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Truck className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">Same-Day Delivery</span>
+                  </div>
                 </div>
               </div>
+
+              {!authLoading && !user && (
+                <div className="bg-muted/50 border border-border rounded-xl p-3 sm:p-4 overflow-hidden">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Search className="h-4 w-4 text-primary" />
+                      <h3 className="font-semibold text-sm">Track Your Order</h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Enter the phone number you used when ordering.
+                    </p>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <input
+                          className="flex w-full rounded-md border border-input bg-background px-3 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm pl-9 h-9 text-base sm:text-sm"
+                          placeholder="09XX XXX XXXX"
+                          value={trackingPhone}
+                          onChange={(e) => setTrackingPhone(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleTrackOrder()
+                            }
+                          }}
+                        />
+                      </div>
+                      <button
+                        onClick={handleTrackOrder}
+                        className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md rounded-md px-3 h-9"
+                      >
+                        Track
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Search */}
-        <div className="py-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm pl-10 text-base h-11 sm:h-10"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
+            {/* Search */}
+            <div className="py-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm pl-10 text-base h-11 sm:h-10"
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
 
-        {/* Availability filters */}
-        <div className="flex items-center gap-1.5 sm:gap-2 py-2 overflow-x-auto scrollbar-hide">
+            {/* Availability filters */}
+            <div className="flex items-center gap-1.5 sm:gap-2 py-2 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setSelectedAvailability('all')}
             className={`inline-flex items-center justify-center whitespace-nowrap font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md gap-1 sm:gap-1.5 text-[11px] sm:text-xs shrink-0 h-8 px-2.5 sm:px-3 ${
@@ -828,6 +875,8 @@ function PublicShopPage() {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* Product Detail Modal */}

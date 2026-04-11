@@ -11,6 +11,11 @@ const DASHBOARD_KPIS_CACHE = {
   tags: ['orders', 'spoilage', 'dashboard']
 }
 
+const REVENUE_CACHE = {
+  ttlMs: 60 * 1000,
+  tags: ['orders', 'revenue', 'dashboard']
+}
+
 const PAYMENT_METHODS_CACHE = {
   ttlMs: 30 * 60 * 1000,
   tags: ['payment-methods']
@@ -137,6 +142,18 @@ export async function deleteOrder(id) {
 export async function getDashboardKpis() {
   return apiGet('/dashboard/kpis', {
     cache: DASHBOARD_KPIS_CACHE
+  })
+}
+
+export async function getRevenueByMonth(month) {
+  return apiGet('/revenue', {
+    params: {
+      month: month?.trim() || undefined
+    },
+    cache: {
+      ...REVENUE_CACHE,
+      key: `revenue:${month || ''}`
+    }
   })
 }
 

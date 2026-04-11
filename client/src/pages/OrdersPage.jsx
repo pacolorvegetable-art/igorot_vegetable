@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -25,6 +25,31 @@ import {
   ORDER_STATUS_BADGE_CLASSNAMES,
   formatOrderStatusLabel
 } from '../lib/orderStatus'
+
+const PAYMENT_STATUS_COLORS = {
+  unpaid: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  paid: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  refunded: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+}
+
+const PAYMENT_STATUS_OPTIONS = ['unpaid', 'paid', 'refunded']
+
+const formatCurrency = (value) =>
+  `₱${Number(value || 0).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`
+
+const formatPaymentMethodLabel = (paymentMethod) => {
+  const labels = {
+    gcash: 'GCash',
+    maya: 'Maya',
+    bank: 'Bank Transfer',
+    cod: 'Cash on Delivery'
+  }
+
+  return labels[paymentMethod] || paymentMethod || 'Not specified'
+}
 
 export default function OrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -65,7 +90,7 @@ export default function OrdersPage() {
     }
   }
 
-  const closeSelectedOrder = () => {
+  const closeSelectedOrder = useCallback(() => {
     setSelectedOrder(null)
 
     if (!searchParams.has('order')) return
@@ -73,7 +98,11 @@ export default function OrdersPage() {
     const nextSearchParams = new URLSearchParams(searchParams)
     nextSearchParams.delete('order')
     setSearchParams(nextSearchParams, { replace: true })
-  }
+  }, [searchParams, setSearchParams])
+
+  const handleOrderSelect = useCallback((order) => {
+    setSelectedOrder(order)
+  }, [])
 
   const handleStatusChange = async (orderId, newStatus) => {
     setStatusActionLoading(newStatus)
@@ -134,39 +163,52 @@ export default function OrdersPage() {
     }
   }
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+
+  const filteredOrders = useMemo(() => orders.filter((order) => {
+    const matchesSearch = normalizedSearchQuery.length === 0 ||
+      order.customer_name?.toLowerCase().includes(normalizedSearchQuery) ||
       order.customer_phone?.includes(searchQuery) ||
-      order.id.toLowerCase().includes(searchQuery.toLowerCase())
+      order.id.toLowerCase().includes(normalizedSearchQuery)
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter
     return matchesSearch && matchesStatus
-  })
+  }), [orders, normalizedSearchQuery, searchQuery, statusFilter])
 
-  const paymentStatusColors = {
-    unpaid: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-    paid: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-    refunded: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-  }
-
-  const paymentStatusOptions = ['unpaid', 'paid', 'refunded']
-
-  const formatCurrency = (value) =>
-    `₱${Number(value || 0).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`
-
-  const formatPaymentMethodLabel = (paymentMethod) => {
-    const labels = {
-      gcash: 'GCash',
-      maya: 'Maya',
-      bank: 'Bank Transfer',
-      cod: 'Cash on Delivery'
-    }
-
-    return labels[paymentMethod] || paymentMethod || 'Not specified'
-  }
+  const orderCards = useMemo(() => filteredOrders.map((order) => (
+    <button
+      key={order.id}
+      type="button"
+      className="w-full rounded-xl border border-border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
+      onClick={() => handleOrderSelect(order)}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-foreground">
+              {order.customer_name || 'Walk-in Customer'}
+            </p>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+              ORDER_STATUS_BADGE_CLASSNAMES[order.status] || ORDER_STATUS_BADGE_CLASSNAMES.pending
+            }`}>
+              {formatOrderStatusLabel(order.status)}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${PAYMENT_STATUS_COLORS[order.payment_status]}`}>
+              {order.payment_status}
+            </span>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+            <span className="font-mono text-xs">#{order.id.slice(0, 8)}</span>
+            <span>{new Date(order.created_at).toLocaleString()}</span>
+            <span>{order.order_item?.length || 0} item(s)</span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-lg font-bold text-primary">{formatCurrency(order.total_amount)}</p>
+          <p className="text-xs text-muted-foreground">Tap to preview</p>
+        </div>
+      </div>
+    </button>
+  )), [filteredOrders, handleOrderSelect])
 
   const canAcceptOrder = selectedOrder && selectedOrder.status !== 'confirmed'
   const canRejectOrder = selectedOrder && selectedOrder.status !== 'rejected'
@@ -244,41 +286,7 @@ export default function OrdersPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredOrders.map((order) => (
-              <button
-                key={order.id}
-                type="button"
-                className="w-full rounded-xl border border-border bg-card p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
-                onClick={() => setSelectedOrder(order)}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-foreground">
-                        {order.customer_name || 'Walk-in Customer'}
-                      </p>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                        ORDER_STATUS_BADGE_CLASSNAMES[order.status] || ORDER_STATUS_BADGE_CLASSNAMES.pending
-                      }`}>
-                        {formatOrderStatusLabel(order.status)}
-                      </span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${paymentStatusColors[order.payment_status]}`}>
-                        {order.payment_status}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                      <span className="font-mono text-xs">#{order.id.slice(0, 8)}</span>
-                      <span>{new Date(order.created_at).toLocaleString()}</span>
-                      <span>{order.order_item?.length || 0} item(s)</span>
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-lg font-bold text-primary">{formatCurrency(order.total_amount)}</p>
-                    <p className="text-xs text-muted-foreground">Tap to preview</p>
-                  </div>
-                </div>
-              </button>
-            ))}
+            {orderCards}
           </div>
         )}
 
@@ -287,7 +295,7 @@ export default function OrdersPage() {
             <button
               type="button"
               aria-label="Close order preview"
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/55"
               onClick={closeSelectedOrder}
             />
             <div className="relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border bg-background shadow-lg">
@@ -320,7 +328,7 @@ export default function OrdersPage() {
                   }`}>
                     {formatOrderStatusLabel(selectedOrder.status)}
                   </span>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${paymentStatusColors[selectedOrder.payment_status]}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${PAYMENT_STATUS_COLORS[selectedOrder.payment_status]}`}>
                     {selectedOrder.payment_status}
                   </span>
                   {selectedOrder.payment_method && (
@@ -436,7 +444,7 @@ export default function OrdersPage() {
                       disabled={Boolean(paymentActionLoading)}
                       className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      {paymentStatusOptions.map((status) => (
+                      {PAYMENT_STATUS_OPTIONS.map((status) => (
                         <option key={status} value={status} className="capitalize">
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </option>
@@ -465,7 +473,7 @@ export default function OrdersPage() {
             <button
               type="button"
               aria-label="Close delete confirmation"
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/55"
               onClick={() => {
                 if (!deletingOrderId) {
                   setDeleteModalOrder(null)

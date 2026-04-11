@@ -52,6 +52,19 @@ const toSortedOrders = (ordersMap) => {
   )
 }
 
+const isValidMonthFilter = (value = '') => /^\d{4}-\d{2}$/.test(value)
+
+const getMonthRangeFromFilter = (monthFilter) => {
+  const [yearString, monthString] = monthFilter.split('-')
+  const year = Number(yearString)
+  const monthIndex = Number(monthString) - 1
+
+  const start = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0))
+  const end = new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0, 0))
+
+  return { start, end }
+}
+
 async function getCustomerPhone(supabase, userId, fallbackPhone = '') {
   if (!userId) {
     return fallbackPhone || ''
@@ -210,11 +223,10 @@ app.get('/api/dashboard/kpis', asyncHandler(async (req, res) => {
         spoilageResponse
       ] = await Promise.all([
         supabase
-          .from('orders')
-          .select('total_amount')
-          .eq('payment_status', 'paid')
-          .gte('created_at', today.toISOString())
-          .lt('created_at', tomorrow.toISOString()),
+          .from('revenue')
+          .select('amount')
+          .gte('recognized_at', today.toISOString())
+          .lt('recognized_at', tomorrow.toISOString()),
         supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
@@ -230,7 +242,7 @@ app.get('/api/dashboard/kpis', asyncHandler(async (req, res) => {
       if (spoilageResponse.error) throw spoilageResponse.error
 
       const todayRevenue = (revenueResponse.data || []).reduce(
-        (total, order) => total + parseFloat(order.total_amount || 0),
+        (total, revenue) => total + parseFloat(revenue.amount || 0),
         0
       )
 
@@ -248,6 +260,49 @@ app.get('/api/dashboard/kpis', asyncHandler(async (req, res) => {
   })
 
   res.json(kpis)
+}))
+
+app.get('/api/revenue', asyncHandler(async (req, res) => {
+  const accessToken = getAccessTokenFromRequest(req)
+  const supabase = createSupabaseServerClient(accessToken)
+  const month = String(req.query.month || '')
+
+  if (!isValidMonthFilter(month)) {
+    res.status(400).json({ error: 'month is required in YYYY-MM format.' })
+    return
+  }
+
+  const { start, end } = getMonthRangeFromFilter(month)
+
+  const revenueSummary = await getCachedOrLoad({
+    key: `revenue:month:${month}`,
+    ttlSeconds: 60,
+    tags: ['orders', 'revenue', 'dashboard'],
+    loader: async () => {
+      const { data, error } = await supabase
+        .from('revenue')
+        .select('amount, recognized_at, order_id')
+        .gte('recognized_at', start.toISOString())
+        .lt('recognized_at', end.toISOString())
+
+      if (error) throw error
+
+      const rows = data || []
+      const totalRevenue = rows.reduce(
+        (total, item) => total + parseFloat(item.amount || 0),
+        0
+      )
+
+      return {
+        month,
+        totalRevenue,
+        totalOrders: rows.length,
+        items: rows
+      }
+    }
+  })
+
+  res.json(revenueSummary)
 }))
 
 app.get('/api/orders', asyncHandler(async (req, res) => {

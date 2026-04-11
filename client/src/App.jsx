@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './lib/AuthContext'
 import { CartProvider } from './lib/CartContext'
@@ -13,8 +13,17 @@ import CustomersPage from './pages/CustomersPage'
 import SettingsPage from './pages/SettingsPage'
 import PublicShopPage from './pages/PublicShopPage'
 import OrderConfirmationPage from './pages/OrderConfirmationPage'
-import OrderTrackingPage from './pages/OrderTrackingPage'
 import AccountPage from './pages/AccountPage'
+
+function LegacyTrackOrderRedirect() {
+  const location = useLocation()
+  const nextSearchParams = new URLSearchParams(location.search)
+  nextSearchParams.set('view', 'orders')
+  const nextSearch = nextSearchParams.toString()
+  const nextPath = nextSearchParams.has('phone') ? '/public-shop' : '/account'
+
+  return <Navigate to={`${nextPath}${nextSearch ? `?${nextSearch}` : ''}`} replace />
+}
 
 function App() {
   return (
@@ -53,7 +62,7 @@ function App() {
           {/* Public shop (no auth required) */}
           <Route path="/public-shop" element={<PublicShopPage />} />
           <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
-          <Route path="/track-order" element={<OrderTrackingPage />} />
+          <Route path="/track-order" element={<LegacyTrackOrderRedirect />} />
           
           {/* Account page (requires login) */}
           <Route

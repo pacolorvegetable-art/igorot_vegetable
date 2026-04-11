@@ -39,7 +39,7 @@ export default function OrderConfirmationPage() {
       toast.error('Please enter your phone number')
       return
     }
-    navigate(`/track-order?phone=${encodeURIComponent(trackPhone)}`)
+    navigate(`/public-shop?view=orders&phone=${encodeURIComponent(trackPhone)}`)
   }
 
   const handleCreateAccount = async () => {

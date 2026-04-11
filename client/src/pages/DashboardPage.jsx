@@ -1,4 +1,4 @@
-import { useState, useEffect, useEffectEvent } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Package,
@@ -12,9 +12,17 @@ import {
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import { getProducts } from '../services/productService'
-import { getDashboardKpis } from '../services/settingsService'
+import { getDashboardKpis, getRevenueByMonth } from '../services/settingsService'
+
+const getCurrentMonthFilter = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
 
 export default function DashboardPage() {
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthFilter)
   const [stats, setStats] = useState({
     totalProducts: 0,
     availableProducts: 0,
@@ -24,36 +32,75 @@ export default function DashboardPage() {
     todaySpoilage: 0,
     loading: true
   })
-
-  const loadStats = useEffectEvent(async () => {
-    try {
-      const [products, kpis] = await Promise.all([
-        getProducts(),
-        getDashboardKpis().catch(() => ({
-          todayRevenue: 0,
-          todaySpoilageLoss: 0,
-          pendingOrders: 0
-        }))
-      ])
-      
-      setStats({
-        totalProducts: products.length,
-        availableProducts: products.filter(p => p.is_available).length,
-        lowStock: products.filter(p => p.stock_quantity < 10).length,
-        pendingOrders: kpis.pendingOrders,
-        todayRevenue: kpis.todayRevenue,
-        todaySpoilage: kpis.todaySpoilageLoss,
-        loading: false
-      })
-    } catch (err) {
-      console.error('Failed to load stats:', err)
-      setStats(prev => ({ ...prev, loading: false }))
-    }
-  })
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0)
+  const [monthlyOrders, setMonthlyOrders] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
+
+    const loadStats = async () => {
+      try {
+        const [products, kpis] = await Promise.all([
+          getProducts(),
+          getDashboardKpis().catch(() => ({
+            todayRevenue: 0,
+            todaySpoilageLoss: 0,
+            pendingOrders: 0
+          }))
+        ])
+
+        if (cancelled) return
+
+        setStats({
+          totalProducts: products.length,
+          availableProducts: products.filter(p => p.is_available).length,
+          lowStock: products.filter(p => p.stock_quantity < 10).length,
+          pendingOrders: kpis.pendingOrders,
+          todayRevenue: kpis.todayRevenue,
+          todaySpoilage: kpis.todaySpoilageLoss,
+          loading: false
+        })
+      } catch (err) {
+        if (cancelled) return
+
+        console.error('Failed to load stats:', err)
+        setStats(prev => ({ ...prev, loading: false }))
+      }
+    }
+
     loadStats()
-  }, [loadStats])
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadMonthlyRevenue = async () => {
+      try {
+        const summary = await getRevenueByMonth(selectedMonth)
+
+        if (cancelled) return
+
+        setMonthlyRevenue(summary.totalRevenue || 0)
+        setMonthlyOrders(summary.totalOrders || 0)
+      } catch (error) {
+        if (cancelled) return
+
+        console.error('Failed to load monthly revenue:', error)
+        setMonthlyRevenue(0)
+        setMonthlyOrders(0)
+      }
+    }
+
+    loadMonthlyRevenue()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedMonth])
 
   const statCards = [
     {
@@ -97,6 +144,24 @@ export default function DashboardPage() {
           </p>
         </div>
 
+        <div className="rounded-xl border border-border bg-card p-4">
+          <label htmlFor="revenue-month" className="text-sm font-medium text-foreground">
+            Revenue Month
+          </label>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              id="revenue-month"
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm sm:w-auto"
+            />
+            <p className="text-xs text-muted-foreground">
+              Showing saved revenue for confirmed and paid orders.
+            </p>
+          </div>
+        </div>
+
         {/* Stats Grid */}
         {stats.loading ? (
           <div className="flex items-center justify-center py-12">
@@ -111,13 +176,17 @@ export default function DashboardPage() {
                   <div className="h-12 w-12 rounded-xl bg-emerald-600/20 flex items-center justify-center">
                     <DollarSign className="h-6 w-6 text-emerald-600" />
                   </div>
-                  <span className="text-xs font-medium text-emerald-600 bg-emerald-600/10 px-2 py-1 rounded-full">Today</span>
+                  <span className="text-xs font-medium text-emerald-600 bg-emerald-600/10 px-2 py-1 rounded-full">
+                    {selectedMonth}
+                  </span>
                 </div>
                 <div className="mt-4">
                   <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-400">
-                    ₱{stats.todayRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ₱{monthlyRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80 mt-1">Today's Revenue</p>
+                  <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80 mt-1">
+                    Monthly Revenue ({monthlyOrders} paid confirmed order{monthlyOrders === 1 ? '' : 's'})
+                  </p>
                 </div>
               </div>
 

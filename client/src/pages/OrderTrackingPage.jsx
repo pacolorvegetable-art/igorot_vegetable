@@ -1,4 +1,4 @@
-import { useState, useEffect, useEffectEvent } from 'react'
+import { useCallback, useMemo, useState, useEffect, useEffectEvent } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import {
@@ -20,7 +20,81 @@ import {
 import { toast } from 'sonner'
 import { getCurrentUserOrderHistory, getTrackedOrdersByPhone } from '../services/settingsService'
 
-function OrderTrackingPage() {
+const ORDER_STATUS_CONFIG = {
+  pending: {
+    label: 'Pending',
+    icon: Clock,
+    className: 'border-yellow-500/30 text-yellow-600 dark:text-yellow-400 bg-yellow-500/10'
+  },
+  confirmed: {
+    label: 'Confirmed',
+    icon: CheckCircle,
+    className: 'border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/10'
+  },
+  rejected: {
+    label: 'Rejected',
+    icon: XCircle,
+    className: 'border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10'
+  }
+}
+
+const PAYMENT_STATUS_BADGE_STYLES = {
+  unpaid: 'border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10',
+  paid: 'border-green-500/30 text-green-600 dark:text-green-400 bg-green-500/10',
+  refunded: 'border-slate-500/30 text-slate-600 dark:text-slate-400 bg-slate-500/10'
+}
+
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const formatCurrency = (value) =>
+  `₱${Number(value || 0).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`
+
+const formatPaymentMethod = (paymentMethod) => {
+  const labels = {
+    gcash: 'GCash',
+    maya: 'Maya',
+    bank: 'Bank Transfer',
+    cod: 'Cash on Delivery'
+  }
+
+  return labels[paymentMethod] || paymentMethod || 'Not specified'
+}
+
+function StatusBadge({ status }) {
+  const config = ORDER_STATUS_CONFIG[status] || ORDER_STATUS_CONFIG.pending
+  const Icon = config.icon
+
+  return (
+    <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors text-xs gap-1 ${config.className}`}>
+      <Icon className="h-3 w-3" />
+      {config.label}
+    </div>
+  )
+}
+
+function PaymentStatusBadge({ status }) {
+  return (
+    <div
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${PAYMENT_STATUS_BADGE_STYLES[status] || PAYMENT_STATUS_BADGE_STYLES.unpaid}`}
+    >
+      {status || 'unpaid'}
+    </div>
+  )
+}
+
+function OrderTrackingPage({ embedded = false, onBack = null, embeddedContext = 'shop' }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const phone = searchParams.get('phone')
   const targetOrderId = searchParams.get('order')
@@ -29,6 +103,11 @@ function OrderTrackingPage() {
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const isSignedInCustomer = Boolean(user?.id) && profile?.role === 'customer'
+  const embeddedBackLabel = embeddedContext === 'account' ? 'Back to Account' : 'Back to Shop'
+  const embeddedEmptyActionLabel = embeddedContext === 'account' ? 'View Account' : 'Browse Products'
+  const embeddedSubtitle = embeddedContext === 'account'
+    ? 'View and preview your orders without leaving your account'
+    : 'Track your orders in the same shop view'
 
   const fetchOrders = useEffectEvent(async () => {
     try {
@@ -57,7 +136,7 @@ function OrderTrackingPage() {
     } else {
       setLoading(false)
     }
-  }, [authLoading, fetchOrders, isSignedInCustomer, phone])
+  }, [authLoading, isSignedInCustomer, phone])
 
   useEffect(() => {
     if (loading || !targetOrderId) return
@@ -68,81 +147,8 @@ function OrderTrackingPage() {
     }
   }, [loading, orders, targetOrderId])
 
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      pending: {
-        label: 'Pending',
-        icon: Clock,
-        className: 'border-yellow-500/30 text-yellow-600 dark:text-yellow-400 bg-yellow-500/10'
-      },
-      confirmed: {
-        label: 'Confirmed',
-        icon: CheckCircle,
-        className: 'border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/10'
-      },
-      rejected: {
-        label: 'Rejected',
-        icon: XCircle,
-        className: 'border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10'
-      }
-    }
-
-    const config = statusConfig[status] || statusConfig.pending
-    const Icon = config.icon
-
-    return (
-      <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors text-xs gap-1 ${config.className}`}>
-        <Icon className="h-3 w-3" />
-        {config.label}
-      </div>
-    )
-  }
-
-  const getPaymentStatusBadge = (status) => {
-    const badgeStyles = {
-      unpaid: 'border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10',
-      paid: 'border-green-500/30 text-green-600 dark:text-green-400 bg-green-500/10',
-      refunded: 'border-slate-500/30 text-slate-600 dark:text-slate-400 bg-slate-500/10'
-    }
-
-    return (
-      <div
-        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${badgeStyles[status] || badgeStyles.unpaid}`}
-      >
-        {status || 'unpaid'}
-      </div>
-    )
-  }
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
-  const formatCurrency = (value) =>
-    `₱${Number(value || 0).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`
-
-  const formatPaymentMethod = (paymentMethod) => {
-    const labels = {
-      gcash: 'GCash',
-      maya: 'Maya',
-      bank: 'Bank Transfer',
-      cod: 'Cash on Delivery'
-    }
-
-    return labels[paymentMethod] || paymentMethod || 'Not specified'
-  }
-
-  const closeSelectedOrder = () => {
+  const closeSelectedOrder = useCallback(() => {
+    // Closing the preview should feel instant; keep this as an urgent update.
     setSelectedOrder(null)
 
     if (!searchParams.has('order')) return
@@ -150,9 +156,96 @@ function OrderTrackingPage() {
     const nextSearchParams = new URLSearchParams(searchParams)
     nextSearchParams.delete('order')
     setSearchParams(nextSearchParams, { replace: true })
-  }
+  }, [searchParams, setSearchParams])
+
+  const handleOrderSelect = useCallback((order) => {
+    setSelectedOrder(order)
+  }, [])
+
+  const orderCards = useMemo(() => orders.map((order) => (
+    <button
+      key={order.id}
+      type="button"
+      onClick={() => handleOrderSelect(order)}
+      className="w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <div className="border-b border-border bg-muted/30 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">Order #{order.id.slice(0, 8)}</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {formatDate(order.created_at)}
+              </p>
+            </div>
+          </div>
+          <StatusBadge status={order.status} />
+        </div>
+      </div>
+
+      <div className="space-y-3 p-4">
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          <div className="flex items-start gap-2">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Delivery Address</p>
+              <p className="line-clamp-2 font-medium">{order.delivery_address || 'N/A'}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Total Amount</p>
+              <p className="font-medium text-primary">{formatCurrency(order.total_amount)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <PaymentStatusBadge status={order.payment_status} />
+          <div className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+            {order.order_item?.length || 0} item(s)
+          </div>
+          {order.payment_method && (
+            <div className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              {formatPaymentMethod(order.payment_method)}
+            </div>
+          )}
+          <p className="ml-auto text-xs font-medium text-primary">Tap to preview</p>
+        </div>
+      </div>
+    </button>
+  )), [orders, handleOrderSelect])
 
   if (!authLoading && !isSignedInCustomer && !phone) {
+    if (embedded) {
+      return (
+        <section className="py-4">
+          <div className="rounded-xl border border-border bg-card p-6 text-center">
+            <Package className="mx-auto mb-4 h-14 w-14 text-muted-foreground/60" />
+            <h2 className="text-xl font-semibold text-foreground">Track Your Orders</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Enter a phone number from the shop page to view order updates here.
+            </p>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 h-10 text-sm font-medium text-primary-foreground transition-all duration-200 hover:bg-primary/90"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                {embeddedBackLabel}
+              </button>
+            )}
+          </div>
+        </section>
+      )
+    }
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
@@ -171,51 +264,32 @@ function OrderTrackingPage() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-background pb-8">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-4xl mx-auto flex items-center justify-between h-16 px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sprout className="h-5 w-5" />
+  const trackingContent = (
+    <>
+      <div className={embedded ? 'py-4' : 'max-w-4xl mx-auto px-4 sm:px-6 py-6'}>
+        {embedded && embeddedContext !== 'account' ? (
+          <div className="mb-6 flex flex-col gap-4 rounded-xl border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Sprout className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-foreground">{isSignedInCustomer ? 'My Orders' : 'Order Tracking'}</h1>
+                <p className="text-xs text-muted-foreground">{isSignedInCustomer ? embeddedSubtitle : 'Track your orders in the same shop view'}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-base font-bold text-foreground">{isSignedInCustomer ? 'My Orders' : 'Order Tracking'}</h1>
-              <p className="text-xs text-muted-foreground">{isSignedInCustomer ? 'Your account order history' : 'Track your orders'}</p>
-            </div>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 h-9 text-sm font-medium transition-all duration-200 hover:bg-accent hover:text-accent-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                {embeddedBackLabel}
+              </button>
+            )}
           </div>
-          <Link
-            to="/public-shop"
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md px-3 h-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back to Shop</span>
-          </Link>
-        </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-        {isSignedInCustomer ? (
-          <div className="bg-muted/50 border border-border rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-primary" />
-              <p className="text-sm">
-                <span className="text-muted-foreground">Showing orders for your account:</span>
-                <span className="font-semibold ml-2">{profile?.name || user?.email || 'Customer'}</span>
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-muted/50 border border-border rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-primary" />
-              <p className="text-sm">
-                <span className="text-muted-foreground">Showing orders for:</span>
-                <span className="font-semibold ml-2">{phone}</span>
-              </p>
-            </div>
-          </div>
-        )}
+        ) : null}
 
         {loading && (
           <div className="text-center py-16">
@@ -237,77 +311,29 @@ function OrderTrackingPage() {
                 ? 'You have no orders in your account yet.'
                 : 'We couldn\'t find any orders with this phone number'}
             </p>
-            <Link
-              to="/public-shop"
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md rounded-md px-4 h-10"
-            >
-              Start Shopping
-            </Link>
+            {embedded && onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 h-10 text-sm font-medium text-primary-foreground transition-all duration-200 hover:bg-primary/90"
+              >
+                {embeddedEmptyActionLabel}
+              </button>
+            ) : (
+              <Link
+                to="/public-shop"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md rounded-md px-4 h-10"
+              >
+                Start Shopping
+              </Link>
+            )}
           </div>
         )}
 
         {!loading && orders.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold mb-4">{isSignedInCustomer ? 'My Orders' : 'Your Orders'} ({orders.length})</h2>
-
-            {orders.map((order) => (
-              <button
-                key={order.id}
-                type="button"
-                onClick={() => setSelectedOrder(order)}
-                className="w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-all hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <div className="border-b border-border bg-muted/30 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <Package className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm">Order #{order.id.slice(0, 8)}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(order.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                    {getStatusBadge(order.status)}
-                  </div>
-                </div>
-
-                <div className="space-y-3 p-4">
-                  <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Delivery Address</p>
-                        <p className="line-clamp-2 font-medium">{order.delivery_address || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total Amount</p>
-                        <p className="font-medium text-primary">{formatCurrency(order.total_amount)}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                    {getPaymentStatusBadge(order.payment_status)}
-                    <div className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      {order.order_item?.length || 0} item(s)
-                    </div>
-                    {order.payment_method && (
-                      <div className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {formatPaymentMethod(order.payment_method)}
-                      </div>
-                    )}
-                    <p className="ml-auto text-xs font-medium text-primary">Tap to preview</p>
-                  </div>
-                </div>
-              </button>
-            ))}
+            {orderCards}
           </div>
         )}
       </div>
@@ -317,7 +343,7 @@ function OrderTrackingPage() {
           <button
             type="button"
             aria-label="Close order preview"
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/55"
             onClick={closeSelectedOrder}
           />
 
@@ -350,8 +376,8 @@ function OrderTrackingPage() {
 
             <div className="flex-1 space-y-5 overflow-y-auto p-5">
               <div className="flex flex-wrap gap-2">
-                {getStatusBadge(selectedOrder.status)}
-                {getPaymentStatusBadge(selectedOrder.payment_status)}
+                <StatusBadge status={selectedOrder.status} />
+                <PaymentStatusBadge status={selectedOrder.payment_status} />
                 <div className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                   <CreditCard className="h-3 w-3" />
                   {formatPaymentMethod(selectedOrder.payment_method)}
@@ -441,6 +467,37 @@ function OrderTrackingPage() {
           </div>
         </div>
       )}
+    </>
+  )
+
+  if (embedded) {
+    return <section>{trackingContent}</section>
+  }
+
+  return (
+    <div className="min-h-screen bg-background pb-8">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="max-w-4xl mx-auto flex items-center justify-between h-16 px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Sprout className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-foreground">{isSignedInCustomer ? 'My Orders' : 'Order Tracking'}</h1>
+              <p className="text-xs text-muted-foreground">{isSignedInCustomer ? 'Your account order history' : 'Track your orders'}</p>
+            </div>
+          </div>
+          <Link
+            to="/public-shop"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md px-3 h-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back to Shop</span>
+          </Link>
+        </div>
+      </header>
+
+      {trackingContent}
     </div>
   )
 }
