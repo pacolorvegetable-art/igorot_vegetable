@@ -17,6 +17,7 @@ import {
 import DashboardLayout from '../components/DashboardLayout'
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../services/productService'
 import { compressImage } from '../lib/imageUtils'
+import { getPriceBasisLabel, normalizePriceBasisQuantity } from '../lib/pricing'
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([])
@@ -87,7 +88,7 @@ export default function ProductsPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Products</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage your vegetable inventory
+              Manage your product inventory
             </p>
           </div>
           <button
@@ -258,7 +259,7 @@ function ProductCard({ product, onEdit, onDelete }) {
         <div className="flex items-center justify-between mt-3">
           <p className="text-lg font-bold text-emerald-600">
             ₱{parseFloat(product.price).toFixed(2)}
-            <span className="text-xs font-normal text-muted-foreground">/{product.unit}</span>
+            <span className="text-xs font-normal text-muted-foreground">/{getPriceBasisLabel(product)}</span>
           </p>
           <p className="text-sm text-muted-foreground">
             Stock: {product.stock_quantity}
@@ -275,8 +276,9 @@ function ProductFormModal({ title, product, onClose, onSubmit }) {
     price: product?.price || '',
     stock_quantity: product?.stock_quantity || 0,
     unit: product?.unit || 'kg',
+    price_basis_quantity: normalizePriceBasisQuantity(product?.price_basis_quantity),
     is_available: product?.is_available !== false,
-    category: product?.category || 'highland_vegetables',
+    category: product?.category || 'vegetables',
     availability_type: product?.availability_type || 'on_hand',
     sale_percent: product?.sale_percent || 0,
     harvested_at: product?.harvested_at || ''
@@ -327,9 +329,19 @@ function ProductFormModal({ title, product, onClose, onSubmit }) {
       return
     }
 
+    const rawPriceBasisQuantity = Number(formData.price_basis_quantity)
+    if (!Number.isFinite(rawPriceBasisQuantity) || rawPriceBasisQuantity <= 0) {
+      setError('Price basis quantity must be greater than 0')
+      return
+    }
+    const priceBasisQuantity = normalizePriceBasisQuantity(rawPriceBasisQuantity)
+
     try {
       setSubmitting(true)
-      await onSubmit(formData, imageFile)
+      await onSubmit({
+        ...formData,
+        price_basis_quantity: priceBasisQuantity
+      }, imageFile)
     } catch (err) {
       setError(err.message || 'Failed to save product')
     } finally {
@@ -427,9 +439,9 @@ function ProductFormModal({ title, product, onClose, onSubmit }) {
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="highland_vegetables">Highland Vegetables</option>
-              <option value="lowland_vegetables">Lowland Vegetables</option>
+              <option value="vegetables">Vegetables</option>
               <option value="fruits">Fruits</option>
+              <option value="others">Others</option>
             </select>
           </div>
 
@@ -536,13 +548,17 @@ function ProductFormModal({ title, product, onClose, onSubmit }) {
             {formData.sale_percent > 0 && formData.price && (
               <p className="text-xs text-emerald-600 mt-1">
                 Sale price: ₱{(formData.price * (1 - formData.sale_percent / 100)).toFixed(2)} 
+                /{(() => {
+                  const basis = normalizePriceBasisQuantity(formData.price_basis_quantity)
+                  return basis === 1 ? formData.unit : `${basis} ${formData.unit}`
+                })()}
                 <span className="text-muted-foreground line-through ml-1">₱{parseFloat(formData.price).toFixed(2)}</span>
               </p>
             )}
           </div>
 
-          {/* Price & Unit */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Price, Unit & Price Basis */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Price (₱) <span className="text-destructive">*</span>
@@ -572,6 +588,23 @@ function ProductFormModal({ title, product, onClose, onSubmit }) {
                 <option value="piece">Piece</option>
                 <option value="pack">Pack</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Per Quantity
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                min="0.001"
+                value={formData.price_basis_quantity}
+                onChange={(e) => setFormData({ ...formData, price_basis_quantity: e.target.value })}
+                placeholder="1"
+                className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Example: ₱{parseFloat(formData.price) || '0'} per {normalizePriceBasisQuantity(formData.price_basis_quantity)} {formData.unit}
+              </p>
             </div>
           </div>
 

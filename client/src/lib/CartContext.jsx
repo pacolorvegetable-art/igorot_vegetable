@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CartContext } from './cartContext'
 import { useAuth } from './useAuth'
+import { getLineTotalForQuantity, getUnitPriceForQuantity } from './pricing'
 const GUEST_CART_STORAGE_KEY = 'igorot_vegetable_cart_guest'
 const CUSTOMER_CART_STORAGE_KEY_PREFIX = 'igorot_vegetable_cart_customer:'
 const GUEST_CACHE_TTL_MS = 24 * 60 * 60 * 1000
@@ -180,27 +181,14 @@ export function CartProvider({ children }) {
   }, [cartItems])
 
   const getCartTotal = useCallback(() => {
-    return cartItems.reduce((sum, item) => {
-      let price = item.quantity >= 10 && item.product.wholesale_price
-        ? item.product.wholesale_price
-        : item.product.price
-      // Apply sale discount
-      if (item.product.sale_percent > 0) {
-        price = price * (1 - item.product.sale_percent / 100)
-      }
-      return sum + (item.quantity * price)
-    }, 0)
+    return cartItems.reduce(
+      (sum, item) => sum + getLineTotalForQuantity(item.product, item.quantity),
+      0
+    )
   }, [cartItems])
 
   const getItemPrice = useCallback((item) => {
-    let price = item.quantity >= 10 && item.product.wholesale_price
-      ? item.product.wholesale_price
-      : item.product.price
-    // Apply sale discount
-    if (item.product.sale_percent > 0) {
-      price = price * (1 - item.product.sale_percent / 100)
-    }
-    return price
+    return getUnitPriceForQuantity(item.product, item.quantity)
   }, [])
 
   const value = {

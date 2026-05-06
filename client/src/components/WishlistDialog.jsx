@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useWishlist } from '../lib/useWishlist'
 import { useCart } from '../lib/useCart'
+import { getPackagePriceForQuantity, getOriginalPackagePriceForQuantity, getPriceBasisLabel } from '../lib/pricing'
 import { toast } from 'sonner'
 import {
   Heart,
@@ -96,8 +97,10 @@ function WishlistDialog({ isOpen, onClose }) {
         ) : (
           <div className="space-y-3">
             {wishlistItems.map((product) => {
-              const hasSale = product.sale_percent > 0
-              const salePrice = hasSale ? (product.price * (1 - product.sale_percent / 100)) : product.price
+              const hasSale = Number(product.sale_percent) > 0
+              const salePrice = getPackagePriceForQuantity(product, 1)
+              const originalPrice = getOriginalPackagePriceForQuantity(product, 1)
+              const priceBasisLabel = getPriceBasisLabel(product)
 
               return (
                 <div 
@@ -124,12 +127,12 @@ function WishlistDialog({ isOpen, onClose }) {
                       {hasSale ? (
                         <>
                           <p className="text-sm font-bold text-red-500">₱{salePrice.toFixed(2)}</p>
-                          <p className="text-xs text-muted-foreground line-through">₱{product.price?.toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground line-through">₱{originalPrice.toFixed(2)}</p>
                         </>
                       ) : (
-                        <p className="text-sm font-bold text-primary">₱{product.price?.toFixed(2)}</p>
+                        <p className="text-sm font-bold text-primary">₱{originalPrice.toFixed(2)}</p>
                       )}
-                      <span className="text-xs text-muted-foreground">/{product.unit || 'kg'}</span>
+                      <span className="text-xs text-muted-foreground">/{priceBasisLabel}</span>
                     </div>
                   </div>
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useCart } from '../lib/useCart'
+import { getLineTotalForQuantity, getPackagePriceForQuantity, getPriceBasisLabel } from '../lib/pricing'
 import CheckoutDialog from './CheckoutDialog'
 import {
   ShoppingCart,
@@ -22,8 +23,7 @@ function CartDialog() {
     setIsCartOpen,
     removeFromCart,
     updateQuantity,
-    getCartTotal,
-    getItemPrice
+    getCartTotal
   } = useCart()
 
   const handleBackdropClick = (e) => {
@@ -98,8 +98,8 @@ function CartDialog() {
                 </div>
               ) : (
                 cartItems.map((item) => {
-                  const itemPrice = getItemPrice(item)
-                  const itemTotal = (item.quantity * itemPrice).toFixed(2)
+                  const itemPrice = getPackagePriceForQuantity(item.product, item.quantity)
+                  const itemTotal = getLineTotalForQuantity(item.product, item.quantity).toFixed(2)
                   const isWholesale = item.quantity >= 10 && item.product.wholesale_price
 
                   return (
@@ -121,7 +121,7 @@ function CartDialog() {
                             <p className="text-sm font-semibold truncate leading-tight">{item.product.name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-xs text-muted-foreground">
-                                ₱{itemPrice.toFixed(2)}/{item.product.unit || 'kg'}
+                                ₱{itemPrice.toFixed(2)}/{getPriceBasisLabel(item.product)}
                               </span>
                               {isWholesale && (
                                 <span className="text-xs text-emerald-600 font-medium">(wholesale)</span>

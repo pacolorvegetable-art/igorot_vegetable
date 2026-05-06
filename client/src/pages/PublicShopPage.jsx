@@ -28,14 +28,18 @@ import {
   Scale,
   Check,
   Salad,
-  Mountain,
-  Wheat,
   Apple,
   Phone
 } from 'lucide-react'
 import NotificationsPanel from '../components/NotificationsPanel'
 import { useNotifications } from '../hooks/useNotifications'
 import { extractNotificationOrderId } from '../lib/notificationUtils'
+import {
+  getLineTotalForQuantity,
+  getPackagePriceForQuantity,
+  getOriginalPackagePriceForQuantity,
+  getPriceBasisLabel
+} from '../lib/pricing'
 import { getProducts } from '../services/productService'
 import OrderTrackingPage from './OrderTrackingPage'
 
@@ -52,6 +56,8 @@ function PublicShopPage() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [quantity, setQuantity] = useState('')
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageLoadFailed, setImageLoadFailed] = useState(false)
+  const [failedProductImageKeys, setFailedProductImageKeys] = useState({})
   const [isWishlistOpen, setIsWishlistOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [trackingPhone, setTrackingPhone] = useState(() => trackedPhoneParam)
@@ -101,6 +107,7 @@ function PublicShopPage() {
     setSelectedProduct(null)
     setQuantity('')
     setImageLoaded(false)
+    setImageLoadFailed(false)
     setNotificationsOpen(false)
     setSearchParams(nextSearchParams)
   }
@@ -181,28 +188,28 @@ function PublicShopPage() {
   const preOrderCount = products.filter(p => p.availability_type === 'pre_order').length
   
   // Category counts
+  const vegetablesCount = products.filter(p => p.category === 'vegetables').length
   const fruitsCount = products.filter(p => p.category === 'fruits').length
-  const highlandCount = products.filter(p => p.category === 'highland_vegetables').length
-  const lowlandCount = products.filter(p => p.category === 'lowland_vegetables').length
+  const othersCount = products.filter(p => p.category === 'others').length
 
   const categoryIconConfig = {
-    highland_vegetables: {
-      icon: Mountain,
+    vegetables: {
+      icon: Leaf,
       bgClass: 'bg-emerald-100 hover:bg-emerald-200 group-hover:bg-emerald-200 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 dark:group-hover:bg-emerald-900/40',
       touchBgClass: 'bg-emerald-200 dark:bg-emerald-900/40',
       iconClass: 'text-emerald-600 dark:text-emerald-400'
-    },
-    lowland_vegetables: {
-      icon: Wheat,
-      bgClass: 'bg-amber-100 hover:bg-amber-200 group-hover:bg-amber-200 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 dark:group-hover:bg-amber-900/40',
-      touchBgClass: 'bg-amber-200 dark:bg-amber-900/40',
-      iconClass: 'text-amber-600 dark:text-amber-400'
     },
     fruits: {
       icon: Apple,
       bgClass: 'bg-rose-100 hover:bg-rose-200 group-hover:bg-rose-200 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 dark:group-hover:bg-rose-900/40',
       touchBgClass: 'bg-rose-200 dark:bg-rose-900/40',
       iconClass: 'text-rose-600 dark:text-rose-400'
+    },
+    others: {
+      icon: Package,
+      bgClass: 'bg-amber-100 hover:bg-amber-200 group-hover:bg-amber-200 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 dark:group-hover:bg-amber-900/40',
+      touchBgClass: 'bg-amber-200 dark:bg-amber-900/40',
+      iconClass: 'text-amber-600 dark:text-amber-400'
     }
   }
 
@@ -219,12 +226,14 @@ function PublicShopPage() {
     setSelectedProduct(product)
     setQuantity('')
     setImageLoaded(false)
+    setImageLoadFailed(false)
   }
 
   const closeProductModal = () => {
     setSelectedProduct(null)
     setQuantity('')
     setImageLoaded(false)
+    setImageLoadFailed(false)
   }
 
   const handleQuantityChange = (value) => {
@@ -250,23 +259,10 @@ function PublicShopPage() {
     setQuantity(value.toString())
   }
 
-  // Helper to get effective price considering sale
-  const getEffectivePrice = (product, qty = 1) => {
-    let price = qty >= 10 && product.wholesale_price 
-      ? product.wholesale_price 
-      : product.price
-    // Apply sale discount
-    if (product.sale_percent > 0) {
-      price = price * (1 - product.sale_percent / 100)
-    }
-    return price
-  }
-
   const calculateTotal = () => {
     const qty = parseFloat(quantity) || 0
     if (!selectedProduct) return 0
-    const price = getEffectivePrice(selectedProduct, qty)
-    return (qty * price).toFixed(2)
+    return getLineTotalForQuantity(selectedProduct, qty).toFixed(2)
   }
 
   const handleAddToCart = () => {
@@ -275,8 +271,7 @@ function PublicShopPage() {
     const success = addToCart(selectedProduct, quantity)
     if (success) {
       const qty = parseFloat(quantity)
-      const price = getEffectivePrice(selectedProduct, qty)
-      const total = (qty * price).toFixed(2)
+      const total = getLineTotalForQuantity(selectedProduct, qty).toFixed(2)
       
       toast.success(
         <div className="flex items-center gap-3">
@@ -307,8 +302,7 @@ function PublicShopPage() {
     const success = addToCart(product, defaultQuantity.toString())
     
     if (success) {
-      const price = getEffectivePrice(product, defaultQuantity)
-      const total = (defaultQuantity * price).toFixed(2)
+      const total = getLineTotalForQuantity(product, defaultQuantity).toFixed(2)
       
       toast.success(
         <div className="flex items-center gap-3">
@@ -353,6 +347,14 @@ function PublicShopPage() {
     setActiveProductId(null)
   }
 
+  const handleProductCardImageError = (imageKey) => {
+    if (!imageKey) return
+    setFailedProductImageKeys((current) => {
+      if (current[imageKey]) return current
+      return { ...current, [imageKey]: true }
+    })
+  }
+
   const toggleNotificationsPanel = () => {
     setNotificationsOpen(currentValue => !currentValue)
   }
@@ -377,17 +379,21 @@ function PublicShopPage() {
     await markAllAsRead()
   }
 
-  const highlandProducts = getProductsByCategory('highland_vegetables')
-  const lowlandProducts = getProductsByCategory('lowland_vegetables')
+  const vegetableProducts = getProductsByCategory('vegetables')
   const fruitProducts = getProductsByCategory('fruits')
+  const otherProducts = getProductsByCategory('others')
 
   // Render a product card (reusable for all sections)
   const renderProductCard = (product) => {
-    const hasSale = product.sale_percent > 0
-    const salePrice = hasSale ? (product.price * (1 - product.sale_percent / 100)) : product.price
+    const hasSale = Number(product.sale_percent) > 0
+    const salePrice = getPackagePriceForQuantity(product, 1)
+    const originalPrice = getOriginalPackagePriceForQuantity(product, 1)
+    const priceBasisLabel = getPriceBasisLabel(product)
     const inWishlist = isInWishlist(product.id)
     const categoryConfig = getCategoryIconConfig(product.category)
     const CategoryIcon = categoryConfig.icon
+    const productImageKey = product.image_url ? `${product.id}:${product.image_url}` : null
+    const showProductImage = Boolean(product.image_url) && !failedProductImageKeys[productImageKey]
     const isTouchActive = activeProductId === product.id
     
     return (
@@ -427,10 +433,22 @@ function PublicShopPage() {
           }`}
           onClick={() => openProductModal(product)}
         >
-          <div className={`h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-white/60 shadow-sm flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-105 group-hover:shadow-md ${categoryConfig.bgClass} ${
-            isTouchActive ? `scale-105 shadow-md ${categoryConfig.touchBgClass}` : ''
+          <div className={`h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-white/60 shadow-sm flex items-center justify-center shrink-0 overflow-hidden transition-all duration-300 group-hover:scale-105 group-hover:shadow-md ${
+            showProductImage ? 'bg-muted/40' : categoryConfig.bgClass
+          } ${
+            isTouchActive ? `scale-105 shadow-md ${showProductImage ? '' : categoryConfig.touchBgClass}` : ''
           }`}>
-            <CategoryIcon className={`h-6 w-6 sm:h-7 sm:w-7 ${categoryConfig.iconClass}`} />
+            {showProductImage ? (
+              <img
+                src={product.image_url}
+                alt={product.name}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                onError={() => handleProductCardImageError(productImageKey)}
+              />
+            ) : (
+              <CategoryIcon className={`h-6 w-6 sm:h-7 sm:w-7 ${categoryConfig.iconClass}`} />
+            )}
           </div>
           <p className={`mt-2 font-semibold text-sm sm:text-base text-foreground line-clamp-2 leading-tight transition-colors duration-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-300 ${
             isTouchActive ? 'text-emerald-700 dark:text-emerald-300' : ''
@@ -482,7 +500,7 @@ function PublicShopPage() {
             <TrendingDown className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
             <div className="flex flex-col leading-tight min-w-0">
               <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 truncate">
-                Bulk: ₱{product.wholesale_price?.toFixed(2)}/{product.unit || 'kg'}
+                Bulk: ₱{Number(product.wholesale_price || 0).toFixed(2)}/{priceBasisLabel}
               </span>
               <span className="text-[9px] text-emerald-600/80 dark:text-emerald-400/70">
                 Order 10+ {product.unit || 'kg'} to unlock
@@ -499,18 +517,18 @@ function PublicShopPage() {
                 <p className="text-xs sm:text-sm font-bold text-red-500 leading-tight">
                   ₱{salePrice.toFixed(2)}
                   <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">
-                    /{product.unit || 'kg'}
+                    /{priceBasisLabel}
                   </span>
                 </p>
                 <p className="text-[10px] text-muted-foreground line-through">
-                  ₱{product.price?.toFixed(2)}
+                  ₱{originalPrice.toFixed(2)}
                 </p>
               </div>
             ) : (
               <p className="text-xs sm:text-sm font-bold text-primary leading-tight truncate min-w-0">
-                ₱{product.price?.toFixed(2)}
+                ₱{originalPrice.toFixed(2)}
                 <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">
-                  /{product.unit || 'kg'}
+                  /{priceBasisLabel}
                 </span>
               </p>
             )}
@@ -794,29 +812,29 @@ function PublicShopPage() {
             All Types
           </button>
           <button
-            onClick={() => setSelectedCategory('highland_vegetables')}
+            onClick={() => setSelectedCategory('vegetables')}
             className={`inline-flex items-center justify-center whitespace-nowrap font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md gap-1 sm:gap-1.5 text-[11px] sm:text-xs shrink-0 h-8 px-2.5 sm:px-3 ${
-              selectedCategory === 'highland_vegetables'
+              selectedCategory === 'vegetables'
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
                 : 'border border-input bg-background hover:bg-accent hover:text-accent-foreground'
             }`}
           >
-            🏔️ Highland
+            🥬 Vegetables
             <div className="inline-flex items-center rounded-full border py-0.5 font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground ml-0.5 h-4 sm:h-5 px-1 sm:px-1.5 text-[9px] sm:text-[10px]">
-              {highlandCount}
+              {vegetablesCount}
             </div>
           </button>
           <button
-            onClick={() => setSelectedCategory('lowland_vegetables')}
+            onClick={() => setSelectedCategory('others')}
             className={`inline-flex items-center justify-center whitespace-nowrap font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md gap-1 sm:gap-1.5 text-[11px] sm:text-xs shrink-0 h-8 px-2.5 sm:px-3 ${
-              selectedCategory === 'lowland_vegetables'
+              selectedCategory === 'others'
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
                 : 'border border-input bg-background hover:bg-accent hover:text-accent-foreground'
             }`}
           >
-            🌾 Lowland
+            📦 Others
             <div className="inline-flex items-center rounded-full border py-0.5 font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground ml-0.5 h-4 sm:h-5 px-1 sm:px-1.5 text-[9px] sm:text-[10px]">
-              {lowlandCount}
+              {othersCount}
             </div>
           </button>
           <button
@@ -855,14 +873,14 @@ function PublicShopPage() {
             /* Show categorized sections when "All Types" is selected */
             <div className="space-y-2">
               {renderCategorySection(
-                'Highland Vegetables',
-                highlandProducts,
+                'Vegetables',
+                vegetableProducts,
                 'border-emerald-200 dark:border-emerald-800'
               )}
               {renderCategorySection(
-                'Lowland Vegetables',
-                lowlandProducts,
-                'border-amber-200 dark:border-amber-800'
+                'Others',
+                otherProducts,
+                'border-slate-200 dark:border-slate-800'
               )}
               {renderCategorySection(
                 'Fruits',
@@ -894,7 +912,7 @@ function PublicShopPage() {
           <div className="fixed z-50 w-[calc(100%-2rem)] max-w-lg gap-4 border bg-background shadow-lg rounded-xl left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:max-w-xl p-0 overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in-0 zoom-in-95">
             {/* Image section - only loads when modal opens */}
             <div className="relative bg-muted/30 flex items-center justify-center overflow-hidden transition-all duration-300 cursor-pointer shrink-0 h-36 sm:h-52">
-              {selectedProduct.image_url ? (
+              {selectedProduct.image_url && !imageLoadFailed ? (
                 <>
                   {!imageLoaded && (
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -907,6 +925,10 @@ function PublicShopPage() {
                     alt={selectedProduct.name}
                     className={`w-full h-full object-cover ${imageLoaded ? 'block' : 'hidden'}`}
                     onLoad={() => setImageLoaded(true)}
+                    onError={() => {
+                      setImageLoadFailed(true)
+                      setImageLoaded(false)
+                    }}
                   />
                 </>
               ) : (
@@ -962,9 +984,9 @@ function PublicShopPage() {
                 <div className="flex items-end justify-between gap-2 flex-wrap">
                   <div>
                     <p className="text-2xl font-bold text-primary">
-                      ₱{selectedProduct.price?.toFixed(2)}
+                      ₱{getPackagePriceForQuantity(selectedProduct, 1).toFixed(2)}
                     </p>
-                    <p className="text-xs text-muted-foreground">per {selectedProduct.unit || 'kg'}</p>
+                    <p className="text-xs text-muted-foreground">per {getPriceBasisLabel(selectedProduct)}</p>
                   </div>
                 </div>
 
@@ -974,7 +996,7 @@ function PublicShopPage() {
                     <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                       <TrendingDown className="h-3.5 w-3.5 shrink-0" />
                       <span className="text-xs font-medium">
-                        Wholesale: ₱{selectedProduct.wholesale_price?.toFixed(2)}/{selectedProduct.unit || 'kg'} — order 10+ {selectedProduct.unit || 'kg'}
+                        Wholesale: ₱{Number(selectedProduct.wholesale_price || 0).toFixed(2)}/{getPriceBasisLabel(selectedProduct)} — order 10+ {selectedProduct.unit || 'kg'}
                       </span>
                     </div>
                   </div>
