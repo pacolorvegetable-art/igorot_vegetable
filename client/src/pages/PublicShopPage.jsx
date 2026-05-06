@@ -188,10 +188,6 @@ function PublicShopPage() {
   const preOrderCount = products.filter(p => p.availability_type === 'pre_order').length
   
   // Category counts
-  const vegetablesCount = products.filter(p => p.category === 'vegetables').length
-  const fruitsCount = products.filter(p => p.category === 'fruits').length
-  const othersCount = products.filter(p => p.category === 'others').length
-
   const categoryIconConfig = {
     vegetables: {
       icon: Leaf,
@@ -550,10 +546,9 @@ function PublicShopPage() {
     if (products.length === 0) return null
     
     return (
-      <div className={`mb-6 border-t pt-3 ${borderColor}`}>
+      <div className={`border-t pt-4 ${borderColor}`}>
         <div className="flex items-center gap-2 mb-3">
           <h3 className="font-semibold text-base sm:text-lg">{title}</h3>
-          <span className="text-xs text-muted-foreground">({products.length})</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {products.map(renderProductCard)}
@@ -820,22 +815,6 @@ function PublicShopPage() {
             }`}
           >
             🥬 Vegetables
-            <div className="inline-flex items-center rounded-full border py-0.5 font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground ml-0.5 h-4 sm:h-5 px-1 sm:px-1.5 text-[9px] sm:text-[10px]">
-              {vegetablesCount}
-            </div>
-          </button>
-          <button
-            onClick={() => setSelectedCategory('others')}
-            className={`inline-flex items-center justify-center whitespace-nowrap font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md gap-1 sm:gap-1.5 text-[11px] sm:text-xs shrink-0 h-8 px-2.5 sm:px-3 ${
-              selectedCategory === 'others'
-                ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
-                : 'border border-input bg-background hover:bg-accent hover:text-accent-foreground'
-            }`}
-          >
-            📦 Others
-            <div className="inline-flex items-center rounded-full border py-0.5 font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground ml-0.5 h-4 sm:h-5 px-1 sm:px-1.5 text-[9px] sm:text-[10px]">
-              {othersCount}
-            </div>
           </button>
           <button
             onClick={() => setSelectedCategory('fruits')}
@@ -846,9 +825,16 @@ function PublicShopPage() {
             }`}
           >
             🍎 Fruits
-            <div className="inline-flex items-center rounded-full border py-0.5 font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground ml-0.5 h-4 sm:h-5 px-1 sm:px-1.5 text-[9px] sm:text-[10px]">
-              {fruitsCount}
-            </div>
+          </button>
+          <button
+            onClick={() => setSelectedCategory('others')}
+            className={`inline-flex items-center justify-center whitespace-nowrap font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md gap-1 sm:gap-1.5 text-[11px] sm:text-xs shrink-0 h-8 px-2.5 sm:px-3 ${
+              selectedCategory === 'others'
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
+                : 'border border-input bg-background hover:bg-accent hover:text-accent-foreground'
+            }`}
+          >
+            📦 Others
           </button>
         </div>
 
@@ -871,21 +857,21 @@ function PublicShopPage() {
             </div>
           ) : selectedCategory === 'all' ? (
             /* Show categorized sections when "All Types" is selected */
-            <div className="space-y-2">
+            <div className="space-y-6">
               {renderCategorySection(
                 'Vegetables',
                 vegetableProducts,
                 'border-emerald-200 dark:border-emerald-800'
               )}
               {renderCategorySection(
-                'Others',
-                otherProducts,
-                'border-slate-200 dark:border-slate-800'
-              )}
-              {renderCategorySection(
                 'Fruits',
                 fruitProducts,
                 'border-red-200 dark:border-red-800'
+              )}
+              {renderCategorySection(
+                'Others',
+                otherProducts,
+                'border-slate-200 dark:border-slate-800'
               )}
             </div>
           ) : (
