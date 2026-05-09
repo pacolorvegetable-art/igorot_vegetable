@@ -13,6 +13,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/useAuth'
 import { isSellerUser } from '../lib/portalMembership'
+import { getAuthErrorMessage } from '../lib/authErrorMessage'
 
 function AuthPage() {
   const navigate = useNavigate()
@@ -121,7 +122,7 @@ function AuthPage() {
     } catch (error) {
       setFormMessage({
         type: 'error',
-        text: error?.message || 'Authentication failed. Please try again.'
+        text: getAuthErrorMessage(error)
       })
     } finally {
       setIsSubmitting(false)

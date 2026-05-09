@@ -13,7 +13,7 @@ Create a **Web Service** from the `server` directory with:
 Set these Render environment variables:
 
 - `PORT=10000` (Render sets this automatically, but leave it available)
-- `CLIENT_ORIGIN=https://<your-vercel-app>.vercel.app`
+- `CLIENT_ORIGIN=https://<your-vercel-app>.vercel.app,https://*.vercel.app`
 - `SUPABASE_URL=<your-supabase-url>`
 - `SUPABASE_ANON_KEY=<your-supabase-anon-key>`
 - `UPSTASH_REDIS_REST_URL=<your-upstash-url>` (optional)
@@ -66,3 +66,13 @@ Replace `https://your-render-service-url.onrender.com` with your actual Render U
 1. Open the Vercel site.
 2. Confirm requests to `/api/*` are reaching Render.
 3. Set `CLIENT_ORIGIN` in Render to the exact Vercel domain (or a comma-separated list if you use multiple domains).
+
+## Production auth/fetch troubleshooting
+
+If you see `POST /auth/v1/token?grant_type=password 400` or `Failed to fetch` in production:
+
+1. Ensure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are from the same Supabase project reference.
+2. Ensure `VITE_API_BASE_URL` points to your live Render service URL.
+3. Ensure `CLIENT_ORIGIN` in Render includes your production Vercel domain and preview domains if needed.
+4. Do not wrap env values in extra quotes in Vercel/Render.
+5. After changing env vars, redeploy both Vercel and Render services.

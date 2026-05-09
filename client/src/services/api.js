@@ -1,18 +1,6 @@
 import axios from 'axios'
 import { resolveSupabaseSession, syncSupabaseSession } from '../lib/authSession'
-
-const resolveApiBaseUrl = () => {
-  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
-
-  if (!configuredBaseUrl) {
-    return '/api'
-  }
-
-  const withoutTrailingSlash = configuredBaseUrl.replace(/\/+$/, '')
-  return withoutTrailingSlash.endsWith('/api')
-    ? withoutTrailingSlash
-    : `${withoutTrailingSlash}/api`
-}
+import { resolveApiBaseUrl } from '../lib/runtimeConfig'
 
 const api = axios.create({ baseURL: resolveApiBaseUrl() })
 const requestCache = new Map()

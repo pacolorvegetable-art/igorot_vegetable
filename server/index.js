@@ -40,6 +40,7 @@ const asyncHandler = (handler) => {
 }
 
 const normalizePhone = (value = '') => value.trim()
+const normalizeOrigin = (value = '') => value.trim().replace(/\/+$/, '')
 
 const uniqueValues = (values = []) => {
   return Array.from(new Set(values.filter(Boolean)))
@@ -53,6 +54,35 @@ const toSortedOrders = (ordersMap) => {
 }
 
 const isValidMonthFilter = (value = '') => /^\d{4}-\d{2}$/.test(value)
+
+const matchesAllowedOrigin = (origin, pattern) => {
+  if (!origin || !pattern) {
+    return false
+  }
+
+  if (origin === pattern) {
+    return true
+  }
+
+  try {
+    const parsedOrigin = new URL(origin)
+    const parsedPattern = new URL(pattern.replace('*.', 'wildcard.'))
+    const patternProtocol = parsedPattern.protocol
+    const patternHost = parsedPattern.hostname
+
+    if (patternHost.startsWith('wildcard.')) {
+      const wildcardSuffix = patternHost.slice('wildcard.'.length)
+      return (
+        parsedOrigin.protocol === patternProtocol &&
+        parsedOrigin.hostname.endsWith(`.${wildcardSuffix}`)
+      )
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
 
 const getMonthRangeFromFilter = (monthFilter) => {
   const [yearString, monthString] = monthFilter.split('-')
@@ -143,14 +173,19 @@ async function getCurrentUserOrderHistory(supabase, accessToken, user = null) {
   return toSortedOrders(ordersMap)
 }
 
-const allowedOrigins = env.clientOrigin
+const allowedOriginPatterns = env.clientOrigin
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => normalizeOrigin(origin))
   .filter(Boolean)
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    const normalizedRequestOrigin = normalizeOrigin(origin || '')
+    const isAllowedOrigin = allowedOriginPatterns.some((pattern) =>
+      matchesAllowedOrigin(normalizedRequestOrigin, pattern)
+    )
+
+    if (!origin || allowedOriginPatterns.length === 0 || isAllowedOrigin) {
       callback(null, true)
       return
     }
