@@ -35,6 +35,10 @@ export const extractNotificationOrderId = (notification) => {
   return orderIdMatch?.[0] || null
 }
 
+export const extractNotificationConversationId = (notification) => {
+  return notification?.conversation_id || null
+}
+
 export const matchesNotificationAudience = (notification, recipientRole, recipientUserId) => {
   if (!notification) return false
 
@@ -42,6 +46,10 @@ export const matchesNotificationAudience = (notification, recipientRole, recipie
   if (notificationRole !== recipientRole) return false
 
   if (recipientRole === 'customer') {
+    return notification.recipient_user_id === recipientUserId
+  }
+
+  if (notification.recipient_user_id) {
     return notification.recipient_user_id === recipientUserId
   }
 

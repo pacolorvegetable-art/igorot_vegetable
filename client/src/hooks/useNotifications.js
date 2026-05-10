@@ -10,7 +10,7 @@ export function useNotifications({ enabled = true, recipientRole = 'staff', reci
   const notificationsRef = useRef([])
   const notificationQueryParams = useMemo(() => ({
     recipientRole,
-    recipientUserId: recipientRole === 'customer' ? recipientUserId : undefined
+    recipientUserId: recipientUserId || undefined
   }), [recipientRole, recipientUserId])
   const notificationCache = useMemo(() => ({
     ttlMs: 15 * 1000,
@@ -178,6 +178,8 @@ export function useNotifications({ enabled = true, recipientRole = 'staff', reci
 
     if (recipientRole === 'customer') {
       query = query.eq('recipient_user_id', recipientUserId)
+    } else if (recipientUserId) {
+      query = query.or(`recipient_user_id.is.null,recipient_user_id.eq.${recipientUserId}`)
     }
 
     const { error } = await query

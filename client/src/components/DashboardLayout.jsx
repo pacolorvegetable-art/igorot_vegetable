@@ -5,7 +5,7 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  Users,
+  MessageSquare,
   Settings,
   LogOut,
   Menu,
@@ -16,20 +16,21 @@ import {
 import { useAuth } from '../lib/useAuth'
 import NotificationsPanel from './NotificationsPanel'
 import { useNotifications } from '../hooks/useNotifications'
-import { extractNotificationOrderId } from '../lib/notificationUtils'
+import { extractNotificationConversationId, extractNotificationOrderId } from '../lib/notificationUtils'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Products', href: '/dashboard/products', icon: Package },
   { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users },
+  { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
 const mobileNavigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Products', href: '/dashboard/products', icon: Package },
-  { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart }
+  { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
+  { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare }
 ]
 
 export default function DashboardLayout({ children }) {
@@ -49,7 +50,8 @@ export default function DashboardLayout({ children }) {
     markAllAsRead
   } = useNotifications({
     enabled: Boolean(user?.id),
-    recipientRole: 'staff'
+    recipientRole: 'staff',
+    recipientUserId: user?.id
   })
 
   const handleSignOut = async () => {
@@ -62,8 +64,14 @@ export default function DashboardLayout({ children }) {
 
     await markNotificationAsRead(notification)
 
+    const conversationId = extractNotificationConversationId(notification)
     const orderId = extractNotificationOrderId(notification)
     setNotificationsOpen(false)
+
+    if (conversationId) {
+      navigate(`/dashboard/messages?conversation=${encodeURIComponent(conversationId)}`)
+      return
+    }
 
     if (orderId) {
       navigate(`/dashboard/orders?order=${encodeURIComponent(orderId)}`)

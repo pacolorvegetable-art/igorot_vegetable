@@ -14,6 +14,7 @@ import SettingsPage from './pages/SettingsPage'
 import PublicShopPage from './pages/PublicShopPage'
 import OrderConfirmationPage from './pages/OrderConfirmationPage'
 import AccountPage from './pages/AccountPage'
+import MessagesPage from './pages/MessagesPage'
 
 function LegacyTrackOrderRedirect() {
   const location = useLocation()
@@ -23,6 +24,14 @@ function LegacyTrackOrderRedirect() {
   const nextPath = nextSearchParams.has('phone') ? '/public-shop' : '/account'
 
   return <Navigate to={`${nextPath}${nextSearch ? `?${nextSearch}` : ''}`} replace />
+}
+
+function LegacyAccountMessagesRedirect() {
+  const location = useLocation()
+  const nextSearchParams = new URLSearchParams(location.search)
+  nextSearchParams.set('view', 'messages')
+  const nextSearch = nextSearchParams.toString()
+  return <Navigate to={`/account${nextSearch ? `?${nextSearch}` : ''}`} replace />
 }
 
 function App() {
@@ -76,6 +85,17 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/account/messages"
+            element={
+              <ProtectedRoute
+                allowedRoles={['customer']}
+                unauthenticatedRedirectTo="/auth/retail"
+              >
+                <LegacyAccountMessagesRedirect />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected management routes */}
           <Route
@@ -99,6 +119,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['staff']}>
                 <OrdersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/messages"
+            element={
+              <ProtectedRoute allowedRoles={['staff']}>
+                <MessagesPage viewerRole="staff" />
               </ProtectedRoute>
             }
           />

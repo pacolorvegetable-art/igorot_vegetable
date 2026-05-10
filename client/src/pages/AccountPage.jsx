@@ -27,9 +27,10 @@ import { updateCustomer } from '../services/customerService'
 import { getCurrentUserOrderHistory } from '../services/settingsService'
 import NotificationsPanel from '../components/NotificationsPanel'
 import { useNotifications } from '../hooks/useNotifications'
-import { extractNotificationOrderId } from '../lib/notificationUtils'
+import { extractNotificationConversationId, extractNotificationOrderId } from '../lib/notificationUtils'
 import { ACTIVE_ORDER_STATUSES } from '../lib/orderStatus'
 import OrderTrackingPage from './OrderTrackingPage'
+import { MessagesWorkspace } from './MessagesPage'
 
 function SectionCard({ icon, title, action, children }) {
   return (
@@ -75,6 +76,7 @@ function AccountPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const isOrdersView = searchParams.get('view') === 'orders'
+  const isMessagesView = searchParams.get('view') === 'messages'
   const [orders, setOrders] = useState([])
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
@@ -122,10 +124,34 @@ function AccountPage() {
     setSearchParams(nextSearchParams)
   }
 
+  const openMessagesView = ({ conversationId = null, sellerId = null } = {}) => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('view', 'messages')
+
+    if (conversationId) {
+      nextSearchParams.set('conversation', conversationId)
+    } else {
+      nextSearchParams.delete('conversation')
+    }
+
+    if (sellerId) {
+      nextSearchParams.set('seller', sellerId)
+    } else {
+      nextSearchParams.delete('seller')
+    }
+
+    nextSearchParams.delete('order')
+    nextSearchParams.delete('phone')
+    setNotificationsOpen(false)
+    setSearchParams(nextSearchParams)
+  }
+
   const closeOrdersView = () => {
     const nextSearchParams = new URLSearchParams(searchParams)
     nextSearchParams.delete('view')
     nextSearchParams.delete('order')
+    nextSearchParams.delete('conversation')
+    nextSearchParams.delete('seller')
     setSearchParams(nextSearchParams)
   }
 
@@ -270,6 +296,7 @@ function AccountPage() {
 
   const sidebarItems = [
     { icon: Store, label: 'Shop', onClick: () => navigate('/public-shop') },
+    { icon: Mail, label: 'Messages', onClick: () => openMessagesView() },
     { icon: ShoppingCart, label: 'My Orders', onClick: () => openOrdersView() }
   ]
 
@@ -305,8 +332,14 @@ function AccountPage() {
 
     await markNotificationAsRead(notification)
 
+    const conversationId = extractNotificationConversationId(notification)
     const orderId = extractNotificationOrderId(notification)
     setNotificationsOpen(false)
+
+    if (conversationId) {
+      openMessagesView({ conversationId })
+      return
+    }
 
     if (orderId) {
       openOrdersView({ orderId })
@@ -337,7 +370,11 @@ function AccountPage() {
           <div className="space-y-0.5">
             {sidebarItems.map(item => {
               const Icon = item.icon
-              const isActive = item.label === 'My Orders' ? isOrdersView : false
+              const isActive = item.label === 'My Orders'
+                ? isOrdersView
+                : item.label === 'Messages'
+                  ? isMessagesView
+                  : false
 
               return (
                 <button
@@ -353,10 +390,10 @@ function AccountPage() {
             })}
             <button
               type="button"
-              className={`sidebar-item group w-full text-left ${isOrdersView ? '' : 'sidebar-item-active'}`}
+              className={`sidebar-item group w-full text-left ${!isOrdersView && !isMessagesView ? 'sidebar-item-active' : ''}`}
               onClick={closeOrdersView}
             >
-              <Users className={`h-[18px] w-[18px] shrink-0 ${isOrdersView ? 'text-muted-foreground' : 'text-primary'}`} />
+              <Users className={`h-[18px] w-[18px] shrink-0 ${!isOrdersView && !isMessagesView ? 'text-primary' : 'text-muted-foreground'}`} />
               <span className="truncate">My Account</span>
             </button>
           </div>
@@ -378,9 +415,10 @@ function AccountPage() {
             <button
               onClick={handleSignOut}
               disabled={isSigningOut}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
             >
               <LogOut className="h-3.5 w-3.5" />
+              <span>{isSigningOut ? 'Signing Out...' : 'Logout'}</span>
             </button>
           </div>
         </div>
@@ -426,7 +464,11 @@ function AccountPage() {
               <div className="space-y-1">
                 {sidebarItems.map(item => {
                   const Icon = item.icon
-                  const isActive = item.label === 'My Orders' ? isOrdersView : false
+                  const isActive = item.label === 'My Orders'
+                    ? isOrdersView
+                    : item.label === 'Messages'
+                      ? isMessagesView
+                      : false
 
                   return (
                     <button
@@ -446,7 +488,7 @@ function AccountPage() {
 
                 <button
                   type="button"
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${isOrdersView ? 'text-muted-foreground' : 'bg-primary/10 text-primary'}`}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${!isOrdersView && !isMessagesView ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}
                   onClick={() => {
                     closeMobileMenu()
                     closeOrdersView()
@@ -580,7 +622,7 @@ function AccountPage() {
             <div className="mx-auto max-w-6xl px-6">
               <div className="flex h-16 items-center justify-between">
                 <div className="w-24" />
-                <h1 className="text-lg font-bold text-primary">{isOrdersView ? 'My Orders' : 'My Account'}</h1>
+                <h1 className="text-lg font-bold text-primary">{isOrdersView ? 'My Orders' : isMessagesView ? 'Messages' : 'My Account'}</h1>
                 <div className="flex w-24 justify-end">
                   <button
                     type="button"
@@ -601,6 +643,8 @@ function AccountPage() {
           <div className="mx-auto max-w-6xl px-4 py-8 pb-24 sm:px-6 lg:px-8 md:pb-8">
             {isOrdersView ? (
               <OrderTrackingPage embedded onBack={closeOrdersView} embeddedContext="account" />
+            ) : isMessagesView ? (
+              <MessagesWorkspace viewerRole="customer" />
             ) : (
               <>
                 <div className="mb-6 rounded-lg border bg-white p-6 shadow-sm">

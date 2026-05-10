@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import NotificationsPanel from '../components/NotificationsPanel'
 import { useNotifications } from '../hooks/useNotifications'
-import { extractNotificationOrderId } from '../lib/notificationUtils'
+import { extractNotificationConversationId, extractNotificationOrderId } from '../lib/notificationUtils'
 import {
   getLineTotalForQuantity,
   getPackagePriceForQuantity,
@@ -360,8 +360,14 @@ function PublicShopPage() {
 
     await markNotificationAsRead(notification)
 
+    const conversationId = extractNotificationConversationId(notification)
     const orderId = extractNotificationOrderId(notification)
     setNotificationsOpen(false)
+
+    if (conversationId) {
+      navigate(`/account?view=messages&conversation=${encodeURIComponent(conversationId)}`)
+      return
+    }
 
     if (orderId) {
       openOrdersView({ orderId })
@@ -373,6 +379,21 @@ function PublicShopPage() {
 
   const handleMarkAllNotificationsRead = async () => {
     await markAllAsRead()
+  }
+
+  const openMessagesWithSeller = (sellerId) => {
+    if (!user) {
+      toast.info('Please sign in to message the seller.')
+      navigate('/auth/retail')
+      return
+    }
+
+    if (!sellerId) {
+      toast.error('Seller is not available for this product.')
+      return
+    }
+
+    navigate(`/account?view=messages&seller=${encodeURIComponent(sellerId)}`)
   }
 
   const vegetableProducts = getProductsByCategory('vegetables')
@@ -1051,6 +1072,15 @@ function PublicShopPage() {
 
               {/* Add to cart button */}
               <div className="pb-1">
+                {user && (
+                  <button
+                    type="button"
+                    onClick={() => openMessagesWithSeller(selectedProduct.seller_id)}
+                    className="mb-2 inline-flex h-10 w-full items-center justify-center rounded-lg border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    Message Seller
+                  </button>
+                )}
                 <button 
                   onClick={handleAddToCart}
                   disabled={!quantity || parseFloat(quantity) <= 0}

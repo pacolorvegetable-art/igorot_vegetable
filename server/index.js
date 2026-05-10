@@ -585,6 +585,8 @@ app.get('/api/notifications', asyncHandler(async (req, res) => {
 
       if (recipientRole === 'customer') {
         query = query.eq('recipient_user_id', recipientUserId)
+      } else if (recipientUserId) {
+        query = query.or(`recipient_user_id.is.null,recipient_user_id.eq.${recipientUserId}`)
       }
 
       const { data, error } = await query
